@@ -1,22 +1,35 @@
 # Technical Specification Document
-## ClipFlow.ai - Browser-First Video Repurposing Platform
+## ClipFlow.ai - Short-Form Video Editor with Hybrid Processing
 
-**Version:** 2.0  
-**Date:** February 24, 2026  
-**Status:** Draft (Updated with 5 new MVP features)
+**Version:** 3.0  
+**Date:** February 28, 2026  
+**Status:** Draft (Updated with realistic browser limits and hybrid cloud architecture)
 
 ---
 
 ## 1. System Overview
 
 ### 1.1 Architecture Philosophy
-ClipFlow.ai uses a **browser-first architecture** where computationally intensive video processing happens on the client device. The server handles only lightweight operations: authentication, metadata storage, credit management, and optional AI features.
+ClipFlow.ai uses a **hybrid processing architecture**:
+- **Browser-first (default)**: Videos under 20 min / 400MB process entirely client-side using WebCodecs, FFmpeg.wasm, and Whisper Web. Zero upload, instant start, complete privacy.
+- **Cloud fallback (optional)**: Videos over 20 min / 400MB can upload to ClipFlow servers for processing. Same features, but requires upload time and credits.
 
-### 1.2 High-Level Architecture
+This hybrid approach acknowledges browser memory limits (~2GB per tab) while still enabling the full use case for longer content.
+
+### 1.2 Why Hybrid?
+| Processing Mode | Best For | Tradeoffs |
+|----------------|----------|-----------|
+| **Browser** | Videos <20 min, <400MB | Instant start, private, free | Limited by browser memory |
+| **Cloud** | Videos 20 min - 4 hours, 400MB - 5GB | Handles any size | Requires upload, uses credits |
+
+**The browser is not a server.** Attempting to process 1-2GB files in a browser tab will crash. We embrace this limit rather than fight it.
+
+### 1.3 High-Level Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              CLIENT (Browser)                                │
+│                         For videos <20 min / <400MB                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐ ┌───────────┐    │
@@ -32,33 +45,43 @@ ClipFlow.ai uses a **browser-first architecture** where computationally intensiv
 │                           └─────────┬─────────┘                             │
 │                                     │                                        │
 │  ┌────────────┐  ┌────────────┐  ┌──▼──────────┐  ┌────────────┐           │
-│  │ Transcript │  │  Filler    │  │   Caption   │  │   Text     │           │
-│  │ Editor     │  │  Detector  │  │   Renderer  │  │   Overlay  │           │
-│  └────────────┘  └────────────┘  └─────────────┘  │   Renderer │           │
-│                                                     └────────────┘           │
-│  ┌────────────┐  ┌────────────┐  ┌─────────────┐  ┌────────────┐           │
-│  │ Clip       │  │  Brand     │  │  WebCodecs  │  │  Web       │           │
-│  │ Suggester  │  │  Template  │  │  (Decode)   │  │  Worker    │           │
-│  └────────────┘  │  Manager   │  └─────────────┘  └────────────┘           │
-│                   └────────────┘                                             │
-│  ┌────────────┐  ┌─────────────┐                                            │
-│  │ IndexedDB  │  │   Canvas    │                                            │
-│  │ (Cache +   │  │  (Preview)  │                                            │
-│  │  Templates)│  └─────────────┘                                            │
-│  └────────────┘                                                              │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                       │
-                                       │ HTTPS (Auth, Metadata, Credits)
-                                       ▼
+│  │ Transcript │  │  Filler    │  │   Caption   │  │   Size     │           │
+│  │ Editor     │  │  Detector  │  │   Renderer  │  │   Checker  │           │
+│  └────────────┘  └────────────┘  └─────────────┘  └──────┬─────┘           │
+│                                                           │                  │
+│  ┌────────────┐  ┌────────────┐  ┌─────────────┐         │                  │
+│  │  Brand     │  │  WebCodecs │  │  Web        │    Too large?              │
+│  │  Template  │  │  (Decode)  │  │  Worker     │         │                  │
+│  │  Manager   │  └─────────────┘  └────────────┘         │                  │
+│  └────────────┘                                          ▼                  │
+│  ┌────────────┐                              ┌────────────────────┐         │
+│  │ IndexedDB  │                              │  Cloud Upload      │         │
+│  │ (Cache)    │                              │  Prompt            │         │
+│  └────────────┘                              └─────────┬──────────┘         │
+│                                                        │                    │
+└────────────────────────────────────────────────────────┼────────────────────┘
+                                                         │
+                                       ┌─────────────────┴─────────────────┐
+                                       │                                   │
+                                       ▼                                   ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              SERVER (Lightweight)                            │
+│                              SERVER                                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐        │
-│  │   Next.js   │  │  Supabase   │  │   Stripe    │  │  AI Service │        │
-│  │   API       │  │  (Auth/DB)  │  │  (Payments) │  │  (Future)   │        │
-│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘        │
+│  │   Next.js   │  │  Supabase   │  │   Stripe    │  │  Cloud      │        │
+│  │   API       │  │  (Auth/DB)  │  │  (Payments) │  │  Storage    │        │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │  (R2/S3)    │        │
+│                                                      └──────┬──────┘        │
+│                                                             │               │
+│  ┌──────────────────────────────────────────────────────────▼─────────┐    │
+│  │                    CLOUD PROCESSING (for large videos)              │    │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │    │
+│  │  │  Modal /    │  │  FFmpeg     │  │  Whisper    │                 │    │
+│  │  │  Replicate  │  │  (Native)   │  │  (GPU)      │                 │    │
+│  │  │  GPU        │  │             │  │             │                 │    │
+│  │  └─────────────┘  └─────────────┘  └─────────────┘                 │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -902,155 +925,160 @@ class BrandTemplateStore {
 }
 ```
 
-### 3.10 Smart Clip Suggester Module
+### 3.10 Cloud Processing Service Module
 
-Analyzes audio and transcript to suggest high-engagement segments.
+Handles upload and server-side processing for videos that exceed browser limits.
 
 ```typescript
-// src/lib/analysis/clip-suggester.ts
+// src/lib/cloud/cloud-processing-service.ts
 
-interface ClipSuggestion {
+interface CloudProcessingConfig {
+  maxFileSize: number;        // Max file size in bytes (tier-dependent)
+  maxDuration: number;        // Max duration in seconds (tier-dependent)
+  creditCostPerMinute: number; // Credits charged per minute of input video
+}
+
+interface CloudUploadProgress {
+  stage: 'preparing' | 'uploading' | 'processing' | 'complete' | 'error';
+  uploadPercent: number;
+  processingPercent: number;
+  estimatedTimeRemaining?: number;
+  error?: string;
+}
+
+interface CloudProcessingJob {
   id: string;
-  startTime: number;
-  endTime: number;
-  score: number; // 0-100
-  scoreBreakdown: {
-    audioEnergy: number;     // 0-100
-    speechPace: number;      // 0-100
-    keywordDensity: number;  // 0-100
-    fillerPenalty: number;   // 0-100 (lower = more fillers)
-  };
-  label: string; // human-readable description e.g. "High energy discussion about AI"
-  topKeywords: string[];
+  userId: string;
+  status: 'pending' | 'uploading' | 'processing' | 'complete' | 'failed';
+  inputFileUrl: string;
+  outputFileUrl?: string;
+  operations: Operation[];
+  creditsCharged: number;
+  createdAt: Date;
+  completedAt?: Date;
 }
 
-interface ClipSuggesterConfig {
-  targetDuration: number; // target clip length in seconds (30, 60, 90)
-  maxSuggestions: number; // max number of suggestions to return
-  weights: {
-    audioEnergy: number;   // default: 0.40
-    speechPace: number;    // default: 0.25
-    keywordDensity: number; // default: 0.25
-    fillerPenalty: number;  // default: 0.10
+interface CloudProcessingService {
+  // Check if video requires cloud processing
+  requiresCloudProcessing(file: File, userTier: string): {
+    required: boolean;
+    reason?: 'file_size' | 'duration';
+    browserLimit: { maxSize: number; maxDuration: number };
   };
+
+  // Estimate credit cost
+  estimateCreditCost(durationSeconds: number): number;
+
+  // Upload video for cloud processing
+  uploadForProcessing(
+    file: File,
+    operations: Operation[],
+    onProgress: (progress: CloudUploadProgress) => void
+  ): Promise<CloudProcessingJob>;
+
+  // Check job status
+  getJobStatus(jobId: string): Promise<CloudProcessingJob>;
+
+  // Download processed video
+  downloadResult(jobId: string): Promise<Blob>;
+
+  // Cancel job (if still uploading/pending)
+  cancelJob(jobId: string): Promise<void>;
 }
 
-interface ClipSuggesterService {
-  // Full analysis pipeline
-  analyzeSuggestions(
-    audioData: Float32Array,
-    sampleRate: number,
-    transcript: Transcript,
-    config?: Partial<ClipSuggesterConfig>
-  ): Promise<ClipSuggestion[]>;
+const BROWSER_LIMITS = {
+  free:     { maxSize: 200 * 1024 * 1024, maxDuration: 10 * 60 },  // 200MB, 10 min
+  starter:  { maxSize: 300 * 1024 * 1024, maxDuration: 15 * 60 },  // 300MB, 15 min
+  pro:      { maxSize: 400 * 1024 * 1024, maxDuration: 20 * 60 },  // 400MB, 20 min
+  business: { maxSize: 400 * 1024 * 1024, maxDuration: 20 * 60 },  // 400MB, 20 min
+};
 
-  // Individual scoring functions
-  scoreAudioEnergy(
-    audioData: Float32Array,
-    sampleRate: number,
-    startTime: number,
-    endTime: number
-  ): number;
+const CLOUD_LIMITS = {
+  starter:  { maxSize: 1 * 1024 * 1024 * 1024, maxDuration: 60 * 60 },     // 1GB, 60 min
+  pro:      { maxSize: 2 * 1024 * 1024 * 1024, maxDuration: 2 * 60 * 60 }, // 2GB, 2 hours
+  business: { maxSize: 5 * 1024 * 1024 * 1024, maxDuration: 4 * 60 * 60 }, // 5GB, 4 hours
+};
+```
 
-  scoreSpeechPace(
-    words: TranscriptWord[],
-    startTime: number,
-    endTime: number
-  ): number;
+**Cloud Processing Flow**:
+```typescript
+async function processInCloud(
+  file: File,
+  operations: Operation[],
+  userTier: string,
+  onProgress: (progress: CloudUploadProgress) => void
+): Promise<Blob> {
+  // 1. Validate file against cloud limits
+  const cloudLimits = CLOUD_LIMITS[userTier];
+  if (file.size > cloudLimits.maxSize) {
+    throw new Error(`File too large for ${userTier} tier. Max: ${cloudLimits.maxSize / 1024 / 1024}MB`);
+  }
 
-  scoreKeywordDensity(
-    words: TranscriptWord[],
-    startTime: number,
-    endTime: number,
-    globalFrequencies: Map<string, number>
-  ): number;
+  // 2. Check credit balance
+  const estimatedCredits = Math.ceil(file.duration / 60) * 2; // 2 credits per minute
+  const balance = await getCreditsBalance();
+  if (balance < estimatedCredits && userTier !== 'business') {
+    throw new Error(`Insufficient credits. Need ${estimatedCredits}, have ${balance}`);
+  }
 
-  scoreFillerPenalty(
-    fillerDetections: FillerDetection[],
-    startTime: number,
-    endTime: number
-  ): number;
+  // 3. Upload to cloud storage (chunked, resumable)
+  onProgress({ stage: 'uploading', uploadPercent: 0, processingPercent: 0 });
+  const uploadUrl = await uploadToStorage(file, (percent) => {
+    onProgress({ stage: 'uploading', uploadPercent: percent, processingPercent: 0 });
+  });
+
+  // 4. Submit processing job
+  onProgress({ stage: 'processing', uploadPercent: 100, processingPercent: 0 });
+  const job = await submitProcessingJob(uploadUrl, operations);
+
+  // 5. Poll for completion
+  while (job.status !== 'complete' && job.status !== 'failed') {
+    await sleep(2000);
+    const updated = await getJobStatus(job.id);
+    onProgress({
+      stage: 'processing',
+      uploadPercent: 100,
+      processingPercent: updated.processingPercent || 0,
+    });
+    if (updated.status === 'failed') {
+      throw new Error(updated.error || 'Processing failed');
+    }
+  }
+
+  // 6. Download result
+  onProgress({ stage: 'complete', uploadPercent: 100, processingPercent: 100 });
+  return await downloadResult(job.id);
 }
 ```
 
-**Scoring Algorithm**:
+**Server-Side Processing (Modal/Replicate)**:
 ```typescript
-function analyzeSuggestions(
-  audioData: Float32Array,
-  sampleRate: number,
-  transcript: Transcript,
-  config: ClipSuggesterConfig
-): ClipSuggestion[] {
-  const { targetDuration, maxSuggestions, weights } = config;
-  const windowStep = targetDuration / 3; // slide by 1/3 of target duration
-  const totalDuration = audioData.length / sampleRate;
-  const globalFrequencies = computeWordFrequencies(transcript.words);
-  const fillerDetections = detectFillerWords(transcript.words);
-
-  const candidates: ClipSuggestion[] = [];
-
-  // Sliding window analysis
-  for (let start = 0; start + targetDuration <= totalDuration; start += windowStep) {
-    const end = start + targetDuration;
-
-    const audioEnergy = scoreAudioEnergy(audioData, sampleRate, start, end);
-    const speechPace = scoreSpeechPace(transcript.words, start, end);
-    const keywordDensity = scoreKeywordDensity(transcript.words, start, end, globalFrequencies);
-    const fillerPenalty = scoreFillerPenalty(fillerDetections, start, end);
-
-    const score = Math.round(
-      audioEnergy * weights.audioEnergy +
-      speechPace * weights.speechPace +
-      keywordDensity * weights.keywordDensity +
-      fillerPenalty * weights.fillerPenalty
-    );
-
-    const topKeywords = extractTopKeywords(transcript.words, start, end, globalFrequencies, 3);
-
-    candidates.push({
-      id: generateId(),
-      startTime: start,
-      endTime: end,
-      score,
-      scoreBreakdown: { audioEnergy, speechPace, keywordDensity, fillerPenalty },
-      label: `${topKeywords.join(', ')} (score: ${score})`,
-      topKeywords,
-    });
+// Server-side handler (runs on Modal/Replicate GPU)
+async function processVideoOnServer(
+  inputUrl: string,
+  operations: Operation[]
+): Promise<string> {
+  // Download input from cloud storage
+  const inputPath = await downloadFromStorage(inputUrl);
+  
+  // Run FFmpeg with native performance (not WASM)
+  // A 10-minute video processes in ~30 seconds vs 5+ minutes in browser
+  const outputPath = await runFFmpegNative(inputPath, operations);
+  
+  // Run Whisper with GPU acceleration if needed
+  if (operations.some(op => op.type === 'caption' || op.type === 'transcript-edit')) {
+    const transcript = await runWhisperGPU(inputPath);
+    // Apply transcript-based operations
   }
-
-  // Sort by score, deduplicate overlapping windows, return top N
-  return deduplicateOverlapping(
-    candidates.sort((a, b) => b.score - a.score),
-    targetDuration * 0.5 // min gap between suggestions
-  ).slice(0, maxSuggestions);
-}
-
-function scoreAudioEnergy(
-  audioData: Float32Array,
-  sampleRate: number,
-  start: number,
-  end: number
-): number {
-  const startSample = Math.floor(start * sampleRate);
-  const endSample = Math.floor(end * sampleRate);
-  const segment = audioData.slice(startSample, endSample);
-
-  // Compute RMS energy in 1-second windows
-  const windowSize = sampleRate;
-  const energies: number[] = [];
-
-  for (let i = 0; i < segment.length; i += windowSize) {
-    const win = segment.slice(i, i + windowSize);
-    const rms = Math.sqrt(win.reduce((s, v) => s + v * v, 0) / win.length);
-    energies.push(rms);
-  }
-
-  // Score based on mean energy + variance (dynamic = engaging)
-  const mean = energies.reduce((s, e) => s + e, 0) / energies.length;
-  const variance = energies.reduce((s, e) => s + Math.pow(e - mean, 2), 0) / energies.length;
-
-  // Normalize to 0-100
-  return Math.min(100, Math.round((mean * 50 + Math.sqrt(variance) * 50) * 200));
+  
+  // Upload result to cloud storage
+  const outputUrl = await uploadToStorage(outputPath);
+  
+  // Cleanup
+  await deleteFile(inputPath);
+  await deleteFile(outputPath);
+  
+  return outputUrl;
 }
 ```
 
@@ -1467,22 +1495,69 @@ async function handleStripeWebhook(event: Stripe.Event): Promise<void> {
 ### 6.1 Client-Side Security
 
 ```typescript
-// File validation
+// File validation with browser vs cloud limits
 const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/quicktime'];
-const MAX_FILE_SIZE_FREE = 500 * 1024 * 1024; // 500MB
-const MAX_FILE_SIZE_PAID = 2 * 1024 * 1024 * 1024; // 2GB
 
-function validateVideoFile(file: File, userTier: string): ValidationResult {
+const BROWSER_LIMITS = {
+  free:     { maxSize: 200 * 1024 * 1024, maxDuration: 10 * 60 },
+  starter:  { maxSize: 300 * 1024 * 1024, maxDuration: 15 * 60 },
+  pro:      { maxSize: 400 * 1024 * 1024, maxDuration: 20 * 60 },
+  business: { maxSize: 400 * 1024 * 1024, maxDuration: 20 * 60 },
+};
+
+const CLOUD_LIMITS = {
+  free:     null, // No cloud processing for free tier
+  starter:  { maxSize: 1 * 1024 * 1024 * 1024, maxDuration: 60 * 60 },
+  pro:      { maxSize: 2 * 1024 * 1024 * 1024, maxDuration: 2 * 60 * 60 },
+  business: { maxSize: 5 * 1024 * 1024 * 1024, maxDuration: 4 * 60 * 60 },
+};
+
+interface ValidationResult {
+  valid: boolean;
+  processingMode: 'browser' | 'cloud' | 'rejected';
+  error?: string;
+  cloudRequired?: boolean;
+  estimatedCredits?: number;
+}
+
+function validateVideoFile(file: File, duration: number, userTier: string): ValidationResult {
   if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
-    return { valid: false, error: 'Unsupported video format' };
+    return { valid: false, processingMode: 'rejected', error: 'Unsupported video format' };
   }
   
-  const maxSize = userTier === 'free' ? MAX_FILE_SIZE_FREE : MAX_FILE_SIZE_PAID;
-  if (file.size > maxSize) {
-    return { valid: false, error: `File too large. Max: ${maxSize / 1024 / 1024}MB` };
+  const browserLimit = BROWSER_LIMITS[userTier];
+  const cloudLimit = CLOUD_LIMITS[userTier];
+  
+  // Check if browser can handle it
+  if (file.size <= browserLimit.maxSize && duration <= browserLimit.maxDuration) {
+    return { valid: true, processingMode: 'browser' };
   }
   
-  return { valid: true };
+  // Check if cloud can handle it
+  if (cloudLimit && file.size <= cloudLimit.maxSize && duration <= cloudLimit.maxDuration) {
+    const estimatedCredits = Math.ceil(duration / 60) * 2;
+    return { 
+      valid: true, 
+      processingMode: 'cloud', 
+      cloudRequired: true,
+      estimatedCredits,
+    };
+  }
+  
+  // File too large for any processing mode
+  if (userTier === 'free') {
+    return { 
+      valid: false, 
+      processingMode: 'rejected', 
+      error: 'File too large for free tier. Upgrade to Starter for cloud processing of larger files.' 
+    };
+  }
+  
+  return { 
+    valid: false, 
+    processingMode: 'rejected', 
+    error: `File exceeds maximum limits for ${userTier} tier.` 
+  };
 }
 ```
 

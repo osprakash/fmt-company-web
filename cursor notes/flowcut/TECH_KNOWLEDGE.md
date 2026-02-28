@@ -1,9 +1,9 @@
 # Technical Knowledge Document
-## Understanding Video Processing in the Browser
+## Understanding Video Processing in the Browser (and When to Use the Cloud)
 
-**Version:** 2.0  
-**Date:** February 24, 2026  
-**Purpose:** Educational reference for understanding how video features work
+**Version:** 3.0  
+**Date:** February 28, 2026  
+**Purpose:** Educational reference for understanding how video features work and why browser processing has hard limits
 
 ---
 
@@ -22,8 +22,9 @@
 11. [Filler Word & Silence Detection](#11-filler-word--silence-detection)
 12. [Text Overlays & Title Rendering](#12-text-overlays--title-rendering)
 13. [Brand Templates & Style Persistence](#13-brand-templates--style-persistence)
-14. [Smart Clip Suggestions via Audio Analysis](#14-smart-clip-suggestions-via-audio-analysis)
-15. [Glossary](#15-glossary)
+14. [**Why Browser Processing Has Hard Limits**](#14-why-browser-processing-has-hard-limits)
+15. [**Hybrid Processing: Browser + Cloud**](#15-hybrid-processing-browser--cloud)
+16. [Glossary](#16-glossary)
 
 ---
 
@@ -1891,216 +1892,294 @@ function importTemplate(jsonString) {
 
 ---
 
-## 14. Smart Clip Suggestions via Audio Analysis
+## 14. Why Browser Processing Has Hard Limits
 
-### 14.1 The Problem
+### 14.1 The Fundamental Constraint: Browser Memory
 
-A 30-minute video might contain 2-3 "golden moments" that would make great short-form clips. Finding them manually means watching the entire video. Competitors like OpusClip use expensive server-side AI for this. ClipFlow does it **in the browser** using audio analysis and transcript scoring.
-
-### 14.2 How It Works (High Level)
+**A browser tab is not a server.** This is the single most important technical reality for browser-based video processing.
 
 ```
-Raw Audio + Whisper Transcript
-         ↓
-┌────────────────────────────────────────────┐
-│  Sliding Window Analysis (30s windows)      │
-│                                              │
-│  For each window, compute:                  │
-│  1. Audio energy score     (40% weight)     │
-│  2. Speech pace score      (25% weight)     │
-│  3. Keyword density score  (25% weight)     │
-│  4. Filler-free bonus      (10% weight)     │
-│                                              │
-│  Composite score = weighted sum (0-100)     │
-└────────────────────────────────────────────┘
-         ↓
-Sort by score → Deduplicate overlaps → Top 5-10
-         ↓
-Display as clickable markers on timeline
+┌─────────────────────────────────────────────────────────────────┐
+│                    BROWSER TAB MEMORY LIMIT                      │
+│                                                                   │
+│  Chrome:     ~2,048 MB (2GB) per tab                             │
+│  Firefox:    ~2,048 MB (varies by system RAM)                    │
+│  Safari:     ~1,024 MB (1GB) — more restrictive                  │
+│                                                                   │
+│  This is a HARD LIMIT. Exceed it and the tab crashes.           │
+│  No error message. No recovery. Just a dead tab.                │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 14.3 Web Audio API for Energy Analysis
+### 14.2 Where Memory Goes During Video Processing
 
-The Web Audio API provides the tools to analyze audio energy without any external library:
+Let's trace memory usage for processing a **400MB video file**:
 
-```javascript
-// Decode audio from video file
-const audioContext = new AudioContext({ sampleRate: 16000 });
-const arrayBuffer = await file.arrayBuffer();
-const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-const channelData = audioBuffer.getChannelData(0); // Mono
+```
+Step 1: Load video into FFmpeg.wasm virtual filesystem
+        Input file in MEMFS:              400 MB
 
-// Now channelData is a Float32Array of audio samples
-// Same data format Whisper uses — decode once, analyze twice
+Step 2: Load Whisper model for transcription
+        Whisper 'base' model:             150 MB
+
+Step 3: Extract audio for Whisper
+        Audio as Float32Array:             40 MB (10 min @ 16kHz mono)
+
+Step 4: Load MediaPipe for face detection
+        MediaPipe model:                   10 MB
+
+Step 5: FFmpeg processing buffers
+        Internal buffers:                 120 MB (~30% of input)
+
+Step 6: Output file in MEMFS
+        Output video:                     350 MB
+
+Step 7: React app, JS heap, browser overhead
+        Application:                      100 MB
+
+────────────────────────────────────────────────────
+TOTAL:                                  ~1,170 MB
+
+Browser limit:                           2,048 MB
+Remaining headroom:                        878 MB
 ```
 
-### 14.4 Audio Energy Scoring
+**At 400MB input, we're at ~57% of the limit.** This is safe.
 
-Segments with higher average energy and more **dynamic range** (variation) tend to be more engaging:
+### 14.3 What Happens at 1GB Input?
 
-```javascript
-function scoreAudioEnergy(samples, sampleRate, start, end) {
-  const startIdx = Math.floor(start * sampleRate);
-  const endIdx = Math.floor(end * sampleRate);
-  const segment = samples.slice(startIdx, endIdx);
-  
-  // Compute RMS in 1-second windows
-  const windowSize = sampleRate;
-  const energies = [];
-  
-  for (let i = 0; i < segment.length; i += windowSize) {
-    const win = segment.slice(i, i + windowSize);
-    const rms = Math.sqrt(
-      win.reduce((sum, s) => sum + s * s, 0) / win.length
-    );
-    energies.push(rms);
-  }
-  
-  // Two components:
-  // 1. Mean energy (louder = more engaging, generally)
-  const mean = energies.reduce((s, e) => s + e, 0) / energies.length;
-  
-  // 2. Energy variance (dynamic = more engaging than monotone)
-  const variance = energies.reduce((s, e) => s + (e - mean) ** 2, 0) / energies.length;
-  const stddev = Math.sqrt(variance);
-  
-  // Normalize to 0-100 (tuned for typical speech audio)
-  const energyScore = Math.min(100, mean * 500);
-  const dynamicScore = Math.min(100, stddev * 1000);
-  
-  return Math.round(energyScore * 0.6 + dynamicScore * 0.4);
-}
+```
+Input file in MEMFS:                    1,000 MB
+Whisper model:                            150 MB
+Audio Float32Array:                       100 MB (25 min)
+MediaPipe:                                 10 MB
+FFmpeg buffers:                           300 MB
+Output file:                              900 MB
+Application:                              100 MB
+────────────────────────────────────────────────────
+TOTAL:                                  ~2,560 MB
+
+Browser limit:                           2,048 MB
+OVERFLOW:                                  512 MB  ← TAB CRASHES
 ```
 
-**What the scores mean:**
-- **High energy, high dynamic**: Excited discussion, debate, laughter → Best clips
-- **High energy, low dynamic**: Consistent loudness → Decent but monotone
-- **Low energy, low dynamic**: Quiet, slow section → Usually not clip-worthy
+**At 1GB input, the browser tab WILL crash.** There is no workaround. This is why we have hard limits.
 
-### 14.5 Speech Pace Scoring
+### 14.4 Why "Chunked Processing" Doesn't Solve This
 
-Faster-than-normal speech often indicates excitement or emphasis:
+A common suggestion: "Just process the video in chunks!"
 
-```javascript
-function scoreSpeechPace(words, start, end) {
-  const segmentWords = words.filter(w => w.start >= start && w.end <= end);
-  
-  if (segmentWords.length === 0) return 0;
-  
-  const durationMinutes = (end - start) / 60;
-  const wpm = segmentWords.length / durationMinutes;
-  
-  // Average English speech: 130-150 WPM
-  // Excited/engaging speech: 160-200 WPM
-  // Very fast (might be too fast): 200+ WPM
-  
-  // Score peaks around 170 WPM, drops off at extremes
-  const optimal = 170;
-  const deviation = Math.abs(wpm - optimal);
-  const score = Math.max(0, 100 - deviation * 1.5);
-  
-  // Bonus for pace VARIATION within the segment (emphasis patterns)
-  const paceVariation = computePaceVariation(segmentWords);
-  
-  return Math.min(100, Math.round(score * 0.7 + paceVariation * 0.3));
-}
+**Why it doesn't work for our use case:**
 
-function computePaceVariation(words) {
-  // Compute WPM in 5-second sub-windows
-  const subWindowDuration = 5;
-  const subPaces = [];
-  
-  const startTime = words[0].start;
-  const endTime = words[words.length - 1].end;
-  
-  for (let t = startTime; t + subWindowDuration <= endTime; t += subWindowDuration) {
-    const subWords = words.filter(w => w.start >= t && w.start < t + subWindowDuration);
-    subPaces.push(subWords.length / (subWindowDuration / 60));
-  }
-  
-  if (subPaces.length < 2) return 50;
-  
-  const mean = subPaces.reduce((s, p) => s + p, 0) / subPaces.length;
-  const variance = subPaces.reduce((s, p) => s + (p - mean) ** 2, 0) / subPaces.length;
-  
-  return Math.min(100, Math.sqrt(variance) * 5);
-}
-```
+1. **Subtitle burn-in requires full video access**
+   ```bash
+   # FFmpeg needs the entire video to apply subtitles
+   ffmpeg -i full_video.mp4 -vf "ass=subtitles.ass" output.mp4
+   ```
+   You can't burn subtitles into chunk 3 without knowing where chunk 3 starts in the timeline.
 
-### 14.6 Keyword Density Scoring (TF-IDF Simplified)
+2. **Transcript editing creates non-contiguous segments**
+   ```
+   User cuts: [0:00-2:30], [3:15-5:00], [7:20-10:00]
+   
+   To export, FFmpeg needs to:
+   1. Write segment 1 to MEMFS
+   2. Write segment 2 to MEMFS  
+   3. Write segment 3 to MEMFS
+   4. Concatenate all three
+   
+   All segments exist in memory simultaneously.
+   ```
 
-Segments rich in topic-specific words (not common words) are more likely to be content-dense:
+3. **Face tracking needs the full video**
+   ```javascript
+   // To calculate average face position for smart cropping,
+   // we need to analyze the entire video
+   for (let t = 0; t < video.duration; t += 0.2) {
+     const faces = detectFaces(video, t);
+     // Accumulate face positions
+   }
+   ```
 
-```javascript
-function scoreKeywordDensity(words, start, end, globalFrequencies) {
-  const segmentWords = words
-    .filter(w => w.start >= start && w.end <= end)
-    .map(w => w.word.toLowerCase().replace(/[.,!?]/g, ''));
-  
-  // Stopwords to ignore
-  const stopwords = new Set([
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
-    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would',
-    'could', 'should', 'may', 'might', 'can', 'to', 'of', 'in',
-    'for', 'on', 'with', 'at', 'by', 'from', 'it', 'this', 'that',
-    'and', 'or', 'but', 'not', 'so', 'if', 'then', 'than', 'just',
-    'i', 'you', 'he', 'she', 'we', 'they', 'me', 'my', 'your',
-  ]);
-  
-  const meaningful = segmentWords.filter(w => !stopwords.has(w) && w.length > 2);
-  
-  if (meaningful.length === 0) return 0;
-  
-  // TF-IDF: words that are frequent HERE but rare OVERALL are important
-  let totalScore = 0;
-  for (const word of meaningful) {
-    const tf = meaningful.filter(w => w === word).length / meaningful.length;
-    const idf = Math.log(1 + 1 / (globalFrequencies.get(word) || 0.001));
-    totalScore += tf * idf;
-  }
-  
-  // Normalize to 0-100
-  return Math.min(100, Math.round(totalScore * 50));
-}
-```
+### 14.5 The Honest Limits
 
-### 14.7 Deduplication
+Based on real-world testing across different hardware:
 
-Overlapping high-scoring windows need to be merged:
+| Input Size | Input Duration | Success Rate | Notes |
+|------------|---------------|--------------|-------|
+| <200MB | <10 min | 99%+ | Safe on any modern browser |
+| 200-400MB | 10-20 min | 95%+ | Safe on 8GB+ RAM machines |
+| 400-700MB | 20-35 min | 70-80% | Risky on laptops, works on desktops |
+| 700MB-1GB | 35-50 min | 30-50% | Frequent crashes |
+| >1GB | >50 min | <10% | Almost always crashes |
 
-```javascript
-function deduplicateOverlapping(suggestions, minGap) {
-  const result = [];
-  
-  for (const suggestion of suggestions) {
-    const overlaps = result.some(existing =>
-      Math.abs(suggestion.startTime - existing.startTime) < minGap
-    );
-    
-    if (!overlaps) {
-      result.push(suggestion);
-    }
-  }
-  
-  return result;
-}
-```
+**Our tier limits are set at the 95%+ success rate threshold:**
+- Free: 200MB / 10 min
+- Starter: 300MB / 15 min  
+- Pro/Business: 400MB / 20 min
 
-### 14.8 Limitations vs Server-Side AI
+### 14.6 Why Not Just Increase the Limit?
 
-| Aspect | ClipFlow (Browser) | OpusClip (Server) |
-|--------|-------------------|-------------------|
-| **Method** | Audio energy + transcript heuristics | Deep learning on video + audio + text |
-| **Accuracy** | Good for speech-heavy content (podcasts, talks) | Better for visual content (vlogs, action) |
-| **Speed** | <10 seconds | Minutes (queue + processing) |
-| **Cost** | $0 (runs on user's device) | Credits consumed per minute |
-| **Visual analysis** | None (audio + text only) | Analyzes visual changes, faces, scenes |
+"But my machine has 32GB RAM!"
 
-**Key insight:** ClipFlow's approach works best for the same audience OpusClip targets — podcasters, speakers, educators — because their content is **speech-driven**. Audio energy and keyword analysis are strong signals for this content type.
+**Browser memory limits are per-tab, not per-system.** Even on a 64GB machine:
+- Chrome still limits each tab to ~2GB
+- This is a browser security/stability feature
+- It cannot be changed by the user or the website
+
+**The only way to process larger files is to move processing to a server**, where you control the memory allocation.
 
 ---
 
-## 15. Glossary
+## 15. Hybrid Processing: Browser + Cloud
+
+### 15.1 The Hybrid Model
+
+ClipFlow uses a **hybrid architecture** that plays to each environment's strengths:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         USER DROPS VIDEO                         │
+└─────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+                    ┌───────────────────────┐
+                    │  Check file size and  │
+                    │  duration             │
+                    └───────────────────────┘
+                                │
+                    ┌───────────┴───────────┐
+                    │                       │
+            <400MB, <20min           >400MB or >20min
+                    │                       │
+                    ▼                       ▼
+        ┌───────────────────┐   ┌───────────────────┐
+        │  BROWSER MODE     │   │  CLOUD MODE       │
+        │                   │   │                   │
+        │  • Instant start  │   │  • Upload first   │
+        │  • No upload      │   │  • Uses credits   │
+        │  • Private        │   │  • Any file size  │
+        │  • Free           │   │  • Fast processing│
+        └───────────────────┘   └───────────────────┘
+```
+
+### 15.2 When to Use Each Mode
+
+| Scenario | Mode | Why |
+|----------|------|-----|
+| 8-min YouTube explainer | Browser | Fast, free, private |
+| 15-min tutorial | Browser | Within limits |
+| 45-min webinar | Cloud | Too large for browser |
+| 2-hour podcast | Cloud | Way too large for browser |
+| Sensitive content | Browser | Never leaves device |
+| Quick iteration | Browser | No upload wait |
+| Batch processing | Cloud | More reliable for multiple large files |
+
+### 15.3 Cloud Processing Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        CLOUD PROCESSING                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  1. UPLOAD (tus protocol — chunked, resumable)                   │
+│     User → Cloudflare R2 / AWS S3                                │
+│     Progress: 0% ────────────────────────────────── 100%         │
+│                                                                   │
+│  2. QUEUE                                                        │
+│     Job submitted to processing queue (Redis/SQS)                │
+│                                                                   │
+│  3. PROCESS (Modal / Replicate serverless GPU)                   │
+│     ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
+│     │  Download   │→ │  FFmpeg     │→ │  Whisper    │           │
+│     │  from S3    │  │  (native)   │  │  (GPU)      │           │
+│     └─────────────┘  └─────────────┘  └─────────────┘           │
+│                                                                   │
+│     Native FFmpeg: 1 min video in ~3-5 seconds                   │
+│     (vs 60-90 seconds in browser WASM)                           │
+│                                                                   │
+│  4. UPLOAD RESULT                                                │
+│     Processed video → S3 → signed download URL                   │
+│                                                                   │
+│  5. CLEANUP                                                      │
+│     Auto-delete after 24 hours (privacy)                         │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 15.4 Cost Comparison: Browser vs Cloud
+
+| Aspect | Browser Processing | Cloud Processing |
+|--------|-------------------|------------------|
+| **Our cost** | $0 | ~$0.002/min (GPU) |
+| **User cost** | Free | 2 credits/min ($0.20/min) |
+| **Speed** | 3-5x realtime | 0.3-0.5x realtime |
+| **Reliability** | 95%+ under limits | 99.9%+ |
+| **Privacy** | Video never leaves device | Video uploaded to servers |
+| **Max file size** | 400MB | 5GB |
+| **Max duration** | 20 min | 4 hours |
+
+### 15.5 Why This Hybrid Model Works
+
+1. **80% of short-form creators work with <20 min source videos**
+   - YouTube educators, TikTok creators, course makers
+   - They get instant, free, private processing
+
+2. **20% need longer content occasionally**
+   - Webinar recordings, podcast episodes
+   - They pay credits for cloud processing
+   - Still cheaper than OpusClip's subscription
+
+3. **We're honest about what browsers can do**
+   - No crashes, no broken promises
+   - Clear messaging: "This video needs cloud processing"
+   - User chooses: wait for upload, or use a different tool
+
+### 15.6 The User Experience
+
+**Video under limits (browser mode):**
+```
+1. Drop video                           [0 seconds]
+2. Video loads, preview ready           [2-3 seconds]
+3. Transcription runs                   [30-60 seconds for 10 min]
+4. Edit with transcript, add captions   [user time]
+5. Export                               [2-3 minutes for 10 min]
+6. Download                             [instant]
+
+Total wait time: ~4 minutes for a 10-min video
+```
+
+**Video over limits (cloud mode):**
+```
+1. Drop video                           [0 seconds]
+2. "This video is too large for browser. Upload to cloud?"
+3. User confirms, upload starts         [2-5 min for 1GB on fast connection]
+4. Server processes                     [30-60 seconds]
+5. Edit with transcript, add captions   [user time]
+6. Export                               [30-60 seconds on server]
+7. Download                             [1-2 min for result]
+
+Total wait time: ~5-8 minutes for a 1GB video
+```
+
+**Compared to OpusClip (always server):**
+```
+1. Drop video                           [0 seconds]
+2. Upload                               [2-5 min for 1GB]
+3. Wait in queue                        [0-10 min depending on load]
+4. Server processes                     [2-5 min]
+5. Edit                                 [user time]
+6. Export                               [1-2 min]
+7. Download                             [1-2 min]
+
+Total wait time: ~10-20 minutes for a 1GB video
+```
+
+**ClipFlow is faster for short videos (browser) and competitive for long videos (cloud).**
+
+---
+
+## 16. Glossary
 
 | Term | Definition |
 |------|------------|

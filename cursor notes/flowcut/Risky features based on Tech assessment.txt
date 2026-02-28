@@ -1,0 +1,125 @@
+# MVP Feature Decisions Based on Technical Assessment
+## Updated: February 28, 2026
+
+---
+
+## Summary of Changes
+
+Based on the technical assessment and product repositioning, the MVP has been refined:
+
+| Decision | Feature | Rationale |
+|----------|---------|-----------|
+| **CUT** | Smart Clip Suggestions | Heuristics aren't good enough; deferred to Phase 2 with server-side ML |
+| **DEFER** | Text Overlays & Titles | Export pipeline complexity; deferred to Phase 1.5 |
+| **ADD** | Cloud Processing Fallback | Enables larger videos without browser crashes |
+| **KEEP** | 6 core features | Captions, Reframing, Trim, Transcript Edit, Filler Removal, Brand Templates |
+
+---
+
+## CUT: Smart Clip Suggestions (Moved to Phase 2)
+
+**Why cut:**
+- Feasibility: MEDIUM-LOW — the lowest rating of all features
+- Quality perception risk: HIGH — "will produce suggestions; they won't be good"
+- RMS energy + TF-IDF heuristic will rank music intros as best clips, miss dramatic pauses
+- 2-3 weeks of development for something that damages trust
+
+**Why this matters:**
+A bad smart feature is worse than no smart feature. If a user clicks "Smart Suggestions" and gets three terrible clips, their mental model shifts from "this tool is good" to "this tool is dumb."
+
+**New plan:**
+Move to Phase 2 alongside server-side AI clip detection, where it can be done properly with actual ML models on GPU.
+
+---
+
+## DEFER: Text Overlays & Titles (Moved to Phase 1.5)
+
+**Why defer:**
+- FFmpeg drawtext needs .ttf font binaries (web fonts are WOFF2 — not usable)
+- Animated overlays (fade, slide, pop) can't be expressed in FFmpeg filter syntax
+- Canvas frame-by-frame export = 15-22 minutes for a 15-minute video
+
+**What users get instead:**
+Captions (Feature 1) already give users styled, animated text via the ASS subtitle pipeline. Text overlays are additive, not core.
+
+**New plan:**
+Ship 1-2 months post-launch once the export pipeline is stabilized and font loading is solved.
+
+---
+
+## ADD: Cloud Processing Fallback (New MVP Feature)
+
+**Why add:**
+- Browser processing has hard limits (200-400MB, 10-20 min depending on tier)
+- Users with occasional longer videos need a path to process them
+- Cloud fallback generates revenue (2 credits/min) with 99% margin
+
+**What it does:**
+- Detects when video exceeds browser limits
+- Offers upload to ClipFlow servers for processing
+- Same editing UI, just with upload step
+- Credit-based pricing (2 credits/min of input video)
+
+**Technical approach:**
+- Upload to Cloudflare R2 / AWS S3 (chunked, resumable)
+- Process on Modal/Replicate serverless GPUs
+- Same features as browser (captions, reframe, trim, filler removal)
+
+---
+
+## KEEP: 6 Core Features
+
+| Feature | Why Keep |
+|---------|----------|
+| **Smart Captions** | Core feature, HIGH feasibility, proven pipeline (Whisper + ASS) |
+| **Aspect Ratio Reframing** | Core feature, HIGH feasibility, works well for single-speaker |
+| **Video Trimming & Export** | Foundation of the product, non-negotiable |
+| **Transcript-Based Editing** | THE differentiator. Ship with `-c copy` first, add smart re-encoding later |
+| **Filler Word & Silence Removal** | HIGH feasibility, detection is rock-solid (regex + RMS) |
+| **Brand Templates** | HIGH feasibility, 1-2 weeks, pure UI/state, zero technical risk |
+
+---
+
+## Impact of Changes
+
+| Metric | Original (8 Features) | New (6 Features + Cloud) |
+|--------|----------------------|--------------------------|
+| Dev timeline (2-person team) | 14-18 weeks | **10-12 weeks** |
+| Export pipeline complexity | 4 filter types | **2 filter types** |
+| Memory pressure per export | HIGH | **MEDIUM** |
+| Features with HIGH technical risk | 2 | **0** |
+| Browser crash risk | HIGH (unrealistic limits) | **LOW (honest limits)** |
+| Revenue from cloud processing | $0 | **New revenue stream** |
+
+---
+
+## The New MVP Story
+
+**Before (v3.0):**
+"Browser-first video repurposing with 8 features including AI clip suggestions"
+- Unrealistic browser limits (500MB-5GB)
+- Risky features (clip suggestions, text overlays)
+- Competing with OpusClip on their turf
+
+**After (v4.0):**
+"Short-form video editor with instant browser processing and cloud fallback"
+- Honest browser limits (200-400MB)
+- 6 proven features with low technical risk
+- Cloud fallback for larger videos (revenue stream)
+- Clear positioning: "for 5-20 min videos, not 2-hour podcasts"
+
+---
+
+## Launch Timeline
+
+| Phase | Timeline | Features |
+|-------|----------|----------|
+| **MVP** | Weeks 1-12 | 6 core features + cloud fallback |
+| **Phase 1.5** | Weeks 13-16 | Text Overlays & Titles |
+| **Phase 2** | Weeks 17-24 | AI Clip Detection (server-side), Smart Clip Suggestions |
+| **Phase 3** | Weeks 25+ | Social publishing, team workspaces, analytics |
+
+---
+
+*Document maintained by: Product Team*
+*Last updated: February 28, 2026*

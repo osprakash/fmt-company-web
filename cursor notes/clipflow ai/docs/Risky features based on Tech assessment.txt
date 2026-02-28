@@ -1,0 +1,36 @@
+CUT: Smart Clip Suggestions (Feature 8)
+This is the clearest cut. The technical assessment is devastating on this one:
+Feasibility: MEDIUM-LOW — the lowest rating of all 8 features
+Quality perception risk: HIGH — the assessment says "will produce suggestions; they won't be good"
+The RMS energy + TF-IDF heuristic will rank music intros as the best clips every time, miss dramatic pauses, and suggest mid-sentence boundaries
+The PRD calls it "Smart Clip Suggestions" — that name sets expectations a heuristic cannot meet
+It's 2-3 weeks of development for something that damages trust in the product
+Why this matters more than just saving time: A bad smart feature is worse than no smart feature. If a user clicks "Smart Suggestions" and gets three terrible clips, their mental model shifts from "this tool is good" to "this tool is dumb." That perception bleeds into how they judge the captions, the filler detection, everything. One bad feature poisons the brand.
+The PRD's competition analysis already positioned ClipFlow as "AI suggests, you decide" — which the VC assessment correctly called "an admission that the AI isn't good enough." Removing it entirely and owning the manual-first approach ("you know your content best") is a stronger narrative than shipping a bad algorithm with a "beta" label.
+Move to Phase 2 alongside server-side AI clip detection, where it can be done properly with actual ML models.
+DEFER to Phase 1.5: Text Overlays & Titles (Feature 6)
+This is a softer call — the feature is feasible for preview, but the export path has two unresolved engineering problems flagged in the assessment (Problem 7):
+FFmpeg drawtext needs .ttf font binaries loaded into the WASM virtual filesystem. Web fonts (Google Fonts, etc.) are WOFF2 — not directly usable. Each custom font is 200-500KB of additional memory pressure on top of Problem 2 (the memory wall).
+The animated overlays (fade, slide-up, pop, typewriter) described in the PRD cannot be expressed in FFmpeg drawtext filter syntax. The only path for animated overlays is Canvas frame-by-frame export — which the assessment benchmarks at 15-22 minutes for a 15-minute video.
+So you'd ship one of two compromises:
+Static text only (no animations) via drawtext — which undercuts the PRD's "5+ animation presets" requirement
+Animated overlays via Canvas frame-by-frame — which makes exports painfully slow
+Neither is the experience the PRD promises. Meanwhile, captions (Feature 1) already give users styled, animated text on video via the ASS subtitle pipeline, which is proven and fast. Text overlays are additive, not core.
+Ship it 1-2 months post-launch once the export pipeline is stabilized and you've solved the font loading problem.
+Keep Everything Else (6 Features)
+Feature	Why Keep
+Smart Captions	Core feature, HIGH feasibility, proven pipeline (Whisper + ASS)
+Aspect Ratio Reframing	Core feature, HIGH feasibility, works well for single-speaker
+Video Trimming & Export	Foundation of the product, non-negotiable
+Transcript-Based Editing	THE differentiator. Despite the keyframe alignment risk, this is what makes ClipFlow a "real editor" vs a "trim tool." Ship with -c copy first (accept minor imprecision), add smart re-encoding in a fast-follow
+Filler Word & Silence Removal	HIGH feasibility, detection is rock-solid (regex + RMS). Removal reuses the same cut list pipeline as transcript editing — near-zero marginal cost
+Brand Templates	HIGH feasibility, 1-2 weeks, pure UI/state, zero technical risk
+Impact of Cutting
+Metric	8 Features	6 Features
+Dev timeline (2-person team)	14-18 weeks (assessment estimate)	10-13 weeks
+Export pipeline complexity	4 filter types (subtitle + crop + drawtext + overlay)	2 filter types (subtitle + crop)
+Memory pressure per export	HIGH (fonts + overlay frames + everything else)	MEDIUM (manageable)
+Features with HIGH technical risk	2 (clip suggestions, text overlay export)	0
+Core competitive narrative	Intact	Intact — transcript editing + filler removal + brand templates + free captions/reframing is still a strong Day 1 story
+The competition analysis scored ClipFlow at 35% CF++ features with all 8. Dropping clip suggestions (CF+, not CF++) and text overlays (CF++) brings it to roughly 27-30% — still at the target threshold, because the remaining 6 features include the strongest differentiators.
+You launch faster, with fewer bugs, and a tighter story. Then you add text overlays in month 2 and server-side clip detection in Phase 2.

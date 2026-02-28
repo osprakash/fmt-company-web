@@ -1,28 +1,55 @@
 # Product Requirements Document (PRD)
-## ClipFlow.ai - Browser-First Video Repurposing Platform
+## ClipFlow.ai - The Short-Form Video Editor That Runs in Your Browser
 
-**Version:** 3.0  
-**Date:** February 24, 2026  
-**Status:** Draft (Updated with conversion-optimized pricing model)
+**Version:** 4.0  
+**Date:** February 28, 2026  
+**Status:** Draft (Updated with realistic browser limits and hybrid cloud model)
 
 ---
 
 ## 1. Executive Summary
 
 ### 1.1 Product Vision
-ClipFlow.ai is a browser-first video repurposing SaaS that transforms long-form videos into short-form content optimized for social platforms. Our core differentiator is **client-side processing** using modern browser APIs (WebCodecs, FFmpeg.wasm, Whisper Web), dramatically reducing infrastructure costs and enabling a generous free tier that competitors cannot match.
+ClipFlow.ai is a **short-form video editor** optimized for creators who work with videos under 20 minutes. Our core differentiator is **client-side processing** using modern browser APIs (WebCodecs, FFmpeg.wasm, Whisper Web), enabling instant editing with zero upload wait times and complete privacy — your video never leaves your device.
+
+**What ClipFlow IS:** The fastest way to edit 5-20 minute videos into polished shorts with captions, reframing, and transcript-based editing.
+
+**What ClipFlow is NOT:** A long-form podcast/stream clipper. For 1-2 hour videos, use OpusClip or Descript. We're not competing there.
 
 ### 1.2 Problem Statement
-Content creators need to repurpose long-form content into shorts for TikTok, YouTube Shorts, and Instagram Reels. Current solutions like OpusClip charge $15-29/month with limited processing minutes because they rely on expensive server-side compute. Many creators, especially beginners, cannot justify this cost.
+Short-form creators (educators, explainer channels, TikTokers) need to:
+1. Add captions to their 5-15 minute recordings
+2. Reframe horizontal videos to vertical (9:16)
+3. Trim and clean up their content (remove filler words, awkward pauses)
+4. Do this quickly, without uploading to a server and waiting in a queue
+
+Current solutions either:
+- **Require upload + queue** (OpusClip, Descript) — slow for quick edits
+- **Are desktop apps** (Premiere, DaVinci) — overkill for simple tasks
+- **Are mobile-only** (CapCut) — limited for serious editing
 
 ### 1.3 Solution
-A hybrid processing model with a **"try everything, pay to produce"** approach:
-- **Free Tier**: All 8 editing features unlocked, but output-gated (3 exports/month, 720p, watermarked). Users fall in love with the editor before hitting any limit.
-- **Starter ($9/mo)**: Removes watermark + 1080p + 25 exports/month. The natural upgrade for any creator who posts weekly.
-- **Pro ($19/mo)**: Unlimited exports + AI features (Phase 2) + cloud storage. For power creators.
-- **Competitive Edge**: 35% of core features demonstrably better than OpusClip on Day 1 (see [COMPETITION_ANALYSIS.md](./COMPETITION_ANALYSIS.md))
+A **browser-native editor** with a **hybrid cloud fallback**:
+- **Browser Processing (Default)**: Videos under 20 min / 400MB process entirely in your browser. No upload, no wait, no privacy concerns.
+- **Cloud Processing (Fallback)**: Videos over 20 min / 400MB can optionally upload to our servers for processing (uses credits).
+- **"Try everything, pay to produce"**: All editing features free, but exports gated (3/month, 720p, watermarked on free tier).
 
-**Pricing philosophy**: Gate outputs, not inputs. Processing costs us nothing (browser-based). Every free user is a future paying customer, not a cost center.
+**Pricing philosophy**: Gate outputs, not inputs. Browser processing costs us nothing. Every free user is a future paying customer, not a cost center.
+
+### 1.4 Target Use Cases (What We're Optimized For)
+| Use Case | Typical Video Length | Why ClipFlow Wins |
+|----------|---------------------|-------------------|
+| YouTube educator making Shorts from explainer | 8-15 min | Instant processing, transcript editing |
+| TikTok creator editing raw recordings | 3-10 min | No upload wait, privacy |
+| Course creator adding captions | 10-20 min | Batch caption styling, brand templates |
+| Social media manager repurposing clips | 5-15 min | Multi-ratio export, fast turnaround |
+
+### 1.5 Non-Target Use Cases (Use Something Else)
+| Use Case | Why Not ClipFlow | Better Alternative |
+|----------|-----------------|-------------------|
+| Clipping 2-hour podcasts | Browser can't handle 1-2GB files reliably | OpusClip, Descript |
+| Finding viral moments in livestreams | Requires server-side AI analysis | OpusClip, Eklipse |
+| Professional video production | Need timeline, effects, color grading | Premiere, DaVinci, CapCut |
 
 ---
 
@@ -30,25 +57,38 @@ A hybrid processing model with a **"try everything, pay to produce"** approach:
 
 ### 2.1 Competitive Landscape
 
-| Competitor | Pricing | Processing | Key Strengths | Key Weaknesses |
-|------------|---------|------------|---------------|----------------|
-| **OpusClip** | $0-29/mo | Server-side | Virality scoring, B-roll, brand templates | Expensive, limited free tier (60 min/mo watermarked) |
-| **Descript** | $12-24/mo | Server-side | Transcript-based editing, audio cleanup | Per-seat pricing, not clip-focused |
-| **VEED** | $0-24/mo | Server-side | All-in-one editor, team features | Generalist tool, not optimized for clipping |
-| **Reap** | $9-29/mo | Server-side | Multi-language dubbing, scheduling | Complex for simple use cases |
-| **ClipFinder** | $2/hour | Server-side | Budget-friendly | Limited features |
-| **Eklipse** | Free-$15/mo | Server-side | Gaming-focused | Niche audience |
+**We compete in the "quick video editing" space, NOT the "AI clip discovery" space.**
 
-### 2.2 Market Gap
-1. No competitor lets you **try every editing feature for free** before paying. OpusClip's free tier strips features out; ClipFlow's free tier unlocks everything but gates the final export. Users experience the full product before deciding.
-2. OpusClip's editor is widely criticized as "comically bad" (Reddit, Trustpilot 2.4/5). There is a clear opportunity for a **superior editing UX** — specifically transcript-based editing, which lets creators edit video by editing text.
-3. Features like filler word removal, text overlays, and brand templates are locked behind $15-29/mo paywalls. ClipFlow offers them on the free tier.
-4. OpusClip's minute-gating is opaque and hated ("$350 to clip one stream"). ClipFlow uses **export-gating** — transparent and predictable.
+| Competitor | Pricing | Processing | Best For | Why We're Different |
+|------------|---------|------------|----------|---------------------|
+| **CapCut (Web)** | Free | Server-side | Mobile-first creators | We have transcript editing, they don't |
+| **VEED** | $0-24/mo | Server-side | All-in-one editing | We're faster (no upload), they're more feature-rich |
+| **Kapwing** | $0-24/mo | Server-side | Teams, memes | We focus on short-form optimization |
+| **Canva Video** | $0-15/mo | Server-side | Design-first creators | We have better video-specific features |
+| **Descript** | $12-24/mo | Server-side | Podcasters, long-form | We're simpler and cheaper for short videos |
+
+**Adjacent competitors (different use case):**
+| Competitor | Their Focus | Why We Don't Compete Directly |
+|------------|-------------|------------------------------|
+| **OpusClip** | AI clip discovery from 1-2hr videos | We can't process 1-2GB files in browser; they can't match our speed for short videos |
+| **Premiere/DaVinci** | Professional editing | Overkill for our users; we're for quick edits |
+| **CapCut (Desktop)** | Full-featured mobile export | We're browser-based, they require install |
+
+### 2.2 Our Unique Position
+1. **Instant processing**: No upload wait. Drop a 15-min video, start editing in seconds.
+2. **Privacy by default**: Video never leaves your device (for browser-processed content).
+3. **Transcript-first editing**: Edit video by editing text — faster than timeline scrubbing.
+4. **Free tier that actually works**: All features available, just output-gated.
 
 ### 2.3 Target Users
-1. **Primary**: Solo content creators (YouTubers, podcasters, educators) with 1K-100K followers
-2. **Secondary**: Small agencies managing 2-5 creator accounts
-3. **Tertiary**: Enterprise teams (future expansion)
+1. **Primary**: Short-form creators (YouTube Shorts, TikTok, Reels) working with 5-20 min source videos
+2. **Secondary**: Educators and course creators adding captions to explainer videos
+3. **Tertiary**: Social media managers doing quick turnaround edits
+
+### 2.4 Explicitly NOT Our Target
+- Podcasters with 1-2 hour episodes (use OpusClip/Descript)
+- Livestreamers clipping 4-hour streams (use Eklipse/OpusClip)
+- Professional editors needing timeline precision (use Premiere/DaVinci)
 
 ---
 
@@ -267,35 +307,38 @@ A hybrid processing model with a **"try everything, pay to produce"** approach:
 
 ---
 
-### 3.8 Feature 8: Smart Clip Suggestions (Browser-Based)
+### 3.8 Feature 8: Cloud Processing Fallback (Hybrid Model)
 
-**Description**: Analyze audio energy, speech pace, keyword density, and transcript content to suggest the most engaging 30-90 second segments. A lightweight, browser-based alternative to server-side AI clip detection.
+**Description**: For videos that exceed browser processing limits (>20 min or >400MB), offer optional upload to ClipFlow servers for processing. This enables the full use case for users with longer content while maintaining browser-first as the default.
 
-**User Story**: *As a content creator with a 20-minute video, I want the tool to suggest which segments would make the best short-form clips so that I don't have to watch the entire video to find good moments.*
+**User Story**: *As a content creator with a 45-minute video, I want to still use ClipFlow's editing features even though my video is too large for browser processing.*
 
 **Functional Requirements**:
 | ID | Requirement | Priority |
 |----|-------------|----------|
-| CS-01 | Analyze audio energy (volume spikes, speech pace changes) via Web Audio API | P0 |
-| CS-02 | Score each 30-second window on engagement potential (0-100) | P0 |
-| CS-03 | Display top 5-10 suggested clips as clickable markers on the timeline | P0 |
-| CS-04 | Click a suggestion to auto-set trim points and preview the segment | P0 |
-| CS-05 | Keyword/topic density analysis from Whisper transcript | P1 |
-| CS-06 | User feedback loop — thumbs up/down on suggestions to improve local scoring | P1 |
-| CS-07 | Configurable target clip length (15s, 30s, 60s, 90s) | P1 |
-| CS-08 | Combine suggestions with filler detection to avoid suggesting filler-heavy segments | P2 |
+| CP-01 | Detect when video exceeds browser limits (duration or file size) | P0 |
+| CP-02 | Show clear message: "This video is too large for browser processing. Upload to cloud?" | P0 |
+| CP-03 | Display estimated credit cost before upload (2 credits/min of input video) | P0 |
+| CP-04 | Secure upload with progress indicator and resume capability | P0 |
+| CP-05 | Server-side processing using same feature set (captions, reframe, trim, filler removal) | P0 |
+| CP-06 | Download processed video or export directly | P0 |
+| CP-07 | Auto-delete uploaded files after 24 hours (privacy) | P1 |
+| CP-08 | Option to keep in cloud storage (Pro/Business tiers) | P2 |
 
 **Technical Approach**:
-- Audio energy: Web Audio API `AnalyserNode` computing RMS energy per 1-second window, normalized
-- Speech pace: words-per-minute calculated from Whisper word timestamps per segment
-- Keyword density: TF-IDF-like scoring of transcript segments against the full transcript
-- Composite score: weighted combination of energy (40%), pace variation (25%), keyword density (25%), no-filler bonus (10%)
-- Runs entirely in-browser with zero server cost
+- Upload to Cloudflare R2 or AWS S3 (chunked, resumable via tus protocol)
+- Processing via Modal/Replicate serverless GPUs (FFmpeg + Whisper)
+- Same editing UI — user doesn't see difference except upload step
+- Results stored temporarily, download link provided
 
 **Success Metrics**:
-- Suggestion generation time <10 seconds for a 30-minute video
-- At least 1 of top-3 suggestions selected by user ≥60% of the time
-- User-reported helpfulness rating ≥4/5
+- Upload success rate ≥99%
+- Processing time: 1 min of video in <30 seconds (server-side)
+- User satisfaction with cloud fallback ≥4/5
+
+**Credit Cost**:
+- 2 credits per minute of input video (covers GPU compute + storage)
+- Business tier: cloud processing included (no credit cost)
 
 ---
 
@@ -348,27 +391,32 @@ The free tier unlocks **all editing features** — users experience the full pow
 | **Output Limits** | | | | |
 | Exports per month | **3** | **25** | **Unlimited** | **Unlimited** |
 | Watermark | Yes | **No** | No | No |
-| Max export quality | **720p** | **1080p** | **1080p** (4K w/ credits) | 4K included |
+| Max export quality | **720p** | **1080p** | **1080p** | **4K** |
 | Batch export (multi-ratio) | No | Yes | Yes | Yes |
 | | | | | |
-| **Input Limits** | | | | |
-| Max input video duration | **15 min** | **60 min** | **2 hours** | **4 hours** |
-| Max file size | 500MB | 1GB | 2GB | 5GB |
+| **Browser Processing Limits** | | | | |
+| Max input duration (browser) | **10 min** | **15 min** | **20 min** | **20 min** |
+| Max file size (browser) | **200MB** | **300MB** | **400MB** | **400MB** |
 | | | | | |
-| **Smart Features** | | | | |
-| Smart Clip Suggestions | **Top 3** | **All (5-10)** | All | All |
+| **Cloud Processing (Larger Files)** | | | | |
+| Cloud processing available | **No** | **Yes** | **Yes** | **Yes** |
+| Max input duration (cloud) | — | **60 min** | **2 hours** | **4 hours** |
+| Max file size (cloud) | — | **1GB** | **2GB** | **5GB** |
+| Cloud processing cost | — | **2 credits/min** | **2 credits/min** | **Included** |
+| | | | | |
+| **Credits & AI Features** | | | | |
+| Credits/month | 0 | **50** | **300** | **1000** |
+| Cloud processing | — | Yes (uses credits) | Yes (uses credits) | Yes (included) |
+| AI Clip Detection (Phase 2) | — | — | Yes | Yes |
+| AI B-Roll Generation (Phase 2) | — | — | Yes | Yes |
+| AI Voice Enhancement (Phase 2) | — | — | Yes | Yes |
+| | | | | |
+| **Brand & Storage** | | | | |
 | Brand Templates | **1** | **10** | **Unlimited** | Unlimited |
 | Template cloud sync | No | Yes | Yes | Yes |
-| Template import/export | No | Yes | Yes | Yes |
-| | | | | |
-| **AI Features (Phase 2)** | | | | |
-| AI credits/month | 0 | 0 | **300** | **1000** |
-| AI Clip Detection | — | — | Yes | Yes |
-| AI B-Roll Generation | — | — | Yes | Yes |
-| AI Voice Enhancement | — | — | Yes | Yes |
+| Cloud storage | — | — | 10GB | 50GB |
 | | | | | |
 | **Platform** | | | | |
-| Cloud storage | — | — | 10GB | 50GB |
 | Team seats | — | — | — | 3 |
 | API access | — | — | — | Yes |
 | Priority support | — | Yes | Yes | Yes |
@@ -473,19 +521,38 @@ With Business tier and credit top-ups, actual ARR likely 20-30% higher.
 - Minimum 4GB RAM, 8GB recommended
 - Stable internet for initial model downloads (~150MB including Whisper + face detection models)
 
-### 7.2 Video Limitations (Browser Processing)
+### 7.2 Video Limitations — Browser vs Cloud Processing
+
+**Browser Processing (Default — instant, private):**
 | Constraint | Free | Starter | Pro | Business |
 |------------|------|---------|-----|----------|
-| Max file size | 500MB | 1GB | 2GB | 5GB |
-| Max input duration | 15 min | 60 min | 2 hours | 4 hours |
-| Max export resolution | 720p | 1080p | 1080p (4K w/ credits) | 4K |
+| Max file size | 200MB | 300MB | 400MB | 400MB |
+| Max input duration | 10 min | 15 min | 20 min | 20 min |
+| Max export resolution | 720p | 1080p | 1080p | 1080p |
 | Exports per month | 3 | 25 | Unlimited | Unlimited |
-| Concurrent exports | 1 | 2 | 3 | 5 |
+| Processing location | Browser | Browser | Browser | Browser |
+
+**Cloud Processing (Fallback — for larger files, uses credits):**
+| Constraint | Free | Starter | Pro | Business |
+|------------|------|---------|-----|----------|
+| Max file size | N/A | 1GB | 2GB | 5GB |
+| Max input duration | N/A | 60 min | 2 hours | 4 hours |
+| Max export resolution | N/A | 1080p | 4K | 4K |
+| Credit cost | N/A | 2/min | 2/min | Included |
+| Processing location | N/A | Server | Server | Server |
+
+**Why these limits?**
+- Browser tabs have ~2GB memory limit
+- A 400MB video + Whisper model + FFmpeg buffers + output = ~1.5GB (safe margin)
+- Videos over 400MB risk browser crashes on average hardware
+- Cloud fallback enables longer videos without compromising browser reliability
 
 ### 7.3 Known Limitations
 - Safari has limited WebCodecs support (fallback to FFmpeg.wasm only)
 - Mobile browsers not supported in MVP (desktop-first)
-- Very long videos (>1hr) may cause memory issues on low-RAM devices
+- Browser processing requires 8GB+ system RAM for best experience
+- Videos over 20 min / 400MB require cloud processing (upload + credits)
+- Cloud processing adds 2-5 min upload time depending on connection
 
 ---
 
@@ -522,29 +589,41 @@ With Business tier and credit top-ups, actual ARR likely 20-30% higher.
 | Risk | Impact | Likelihood | Mitigation |
 |------|--------|------------|------------|
 | Browser API compatibility issues | High | Medium | Feature detection + graceful fallbacks |
-| Memory crashes on large files | High | Medium | Chunked processing, clear file limits |
+| Memory crashes on large files | High | Low | **Strict file limits (400MB max browser), cloud fallback for larger** |
+| Users try to process videos too large for browser | Medium | High | **Clear messaging + automatic cloud fallback offer** |
 | Whisper model download failures | Medium | Low | CDN redundancy, offline caching |
 | Competition copies browser approach | Medium | Medium | First-mover advantage, rapid iteration |
-| Users expect server-quality from browser | Medium | High | Clear messaging about processing location |
-| Smart clip suggestions feel inaccurate | Medium | Medium | Label as "beta," combine with manual control, collect feedback |
+| Users expect long-form clipping (like OpusClip) | Medium | High | **Clear positioning: "for 5-20 min videos" in all marketing** |
 | Filler detection false positives (e.g., "like" used correctly) | Low | Medium | Confidence threshold + easy undo; show preview before applying |
-| MVP scope creep from 5 new features | High | Medium | Strict P0/P1 priority enforcement; P2 items deferred to post-launch |
+| Cloud processing costs exceed projections | Medium | Low | Monitor GPU costs, adjust credit pricing if needed |
+| Users frustrated by browser limits | Medium | Medium | **Cloud fallback available on all paid tiers** |
 
 ---
 
 ## 10. Launch Plan
 
 ### 10.1 MVP Scope
+**Core Editing (Browser-Based):**
 - Smart Captions (10+ style presets, 25+ languages)
 - Aspect Ratio Reframe (face detection, 9:16 / 1:1 / 4:5)
 - Video Trim & Export (1080p MP4, waveform visualization)
 - Transcript-Based Editing (click-to-seek, delete text to cut video)
 - Filler Word & Silence Removal (auto-detect, one-click remove)
-- Text Overlays & Titles (drag-to-place, 5+ animation presets)
-- Brand Templates (save/load unlimited style configurations)
-- Smart Clip Suggestions (audio energy + keyword scoring, top 5-10 suggestions)
+- Brand Templates (save/load style configurations)
+
+**Hybrid Cloud (For Larger Videos):**
+- Cloud processing fallback for videos >20 min / >400MB
+- Credit-based pricing for cloud processing (2 credits/min)
+- Secure upload with progress indicator
+
+**Platform:**
 - User accounts (email + Google OAuth)
+- Credit balance and usage tracking
 - Basic analytics dashboard
+
+**NOT in MVP (Deferred):**
+- Text Overlays & Titles (deferred to Phase 1.5 — export pipeline complexity)
+- Smart Clip Suggestions (deferred to Phase 2 — requires server-side ML for quality)
 
 ### 10.2 Launch Phases
 1. **Alpha** (Internal): Core team testing
@@ -552,11 +631,12 @@ With Business tier and credit top-ups, actual ARR likely 20-30% higher.
 3. **Public Launch**: Product Hunt + social media campaign
 
 ### 10.3 Go-to-Market
-- Target: YouTube/TikTok creator communities, frustrated OpusClip users
-- Messaging: "The best video clip editor is free to try. Every feature. No credit card. Just drop a video."
-- Channels: Product Hunt, Twitter/X, YouTube tutorials, Reddit
-- Competitive angle: "Try every feature free — captions, transcript editing, filler removal, reframing. Upgrade only when you're ready to post."
-- Upgrade nudge: "Your clip looks amazing. Remove the watermark and export in 1080p for $9/mo."
+- **Target**: Short-form creators (YouTube Shorts, TikTok, Reels) working with 5-20 min source videos
+- **Messaging**: "Edit your videos instantly — no upload, no wait. Captions, transcript editing, and reframing that runs in your browser."
+- **Channels**: Product Hunt, Twitter/X, YouTube tutorials, Reddit (r/NewTubers, r/TikTokCreators)
+- **Competitive angle**: "Unlike tools that make you upload and wait, ClipFlow processes your video instantly on your device. Your video never leaves your browser."
+- **Upgrade nudge**: "Your clip looks amazing. Remove the watermark and export in 1080p for $9/mo."
+- **Positioning vs OpusClip**: "OpusClip is great for 2-hour podcasts. ClipFlow is great for 15-minute videos you need edited NOW."
 
 ---
 
