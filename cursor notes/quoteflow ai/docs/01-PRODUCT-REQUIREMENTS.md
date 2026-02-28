@@ -16,10 +16,88 @@ QuoteFlow AI is a conversational-first quotation management platform designed fo
 
 ### 1.2 Core Value Proposition
 
-- **Speed**: Create quotations 10x faster through chat vs. traditional UI
+- **Speed**: Create quotations 10x faster through natural language chat
+- **Precision**: Chat generates structured data → Editable UI form → Live PDF preview
 - **Accessibility**: Works via WhatsApp, Telegram, Web Chat, or traditional UI
 - **Global**: Multi-currency, multi-language, localization-ready from day one
 - **Deterministic AI**: Reliable, consistent outputs using structured data and MCP
+
+### 1.3 Core Architecture Philosophy
+
+QuoteFlow AI uses a **Chat-to-UI Pipeline** architecture where the LLM acts as an intelligent parser/generator, not the final interface:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         CHAT-TO-UI PIPELINE                              │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│   User Chat Input                                                        │
+│   "Create a quote for John at ABC Corp for 5 hours consulting"          │
+│         │                                                                │
+│         ▼                                                                │
+│   ┌─────────────────┐                                                   │
+│   │  LLM Processing │  ← Parses intent, looks up products/contacts      │
+│   └────────┬────────┘                                                   │
+│            │                                                             │
+│            ▼                                                             │
+│   ┌─────────────────────────────────────────┐                           │
+│   │  Structured JSON/Config Output          │                           │
+│   │  {                                      │                           │
+│   │    "customer": { "name": "John"... },   │                           │
+│   │    "lineItems": [...],                  │                           │
+│   │    "discount": {...}                    │                           │
+│   │  }                                      │                           │
+│   └────────┬────────────────────────────────┘                           │
+│            │                                                             │
+│            ▼                                                             │
+│   ┌─────────────────────────────────────────┐                           │
+│   │  EDITABLE FORM UI                       │                           │
+│   │  ┌───────────────────────────────────┐  │                           │
+│   │  │ Customer: [John Smith        ▼]   │  │                           │
+│   │  │ Company:  [ABC Corp            ]   │  │                           │
+│   │  ├───────────────────────────────────┤  │                           │
+│   │  │ Line Items (editable table)       │  │                           │
+│   │  │ ☐ Consulting  5hr  $150  $750     │  │                           │
+│   │  │ [+ Add Line Item]                 │  │                           │
+│   │  ├───────────────────────────────────┤  │                           │
+│   │  │ Discount: [0%  ▼]  Tax: [Auto]    │  │                           │
+│   │  └───────────────────────────────────┘  │                           │
+│   └────────┬────────────────────────────────┘                           │
+│            │ (real-time sync)                                            │
+│            ▼                                                             │
+│   ┌─────────────────────────────────────────┐                           │
+│   │  LIVE PDF PREVIEW                       │                           │
+│   │  ┌───────────────────────────────────┐  │                           │
+│   │  │  [Your Logo]                      │  │                           │
+│   │  │  QUOTATION #Q-2026-001            │  │                           │
+│   │  │  To: John Smith, ABC Corp         │  │                           │
+│   │  │  ─────────────────────────────    │  │                           │
+│   │  │  Consulting Services  5hr  $750   │  │                           │
+│   │  │  ─────────────────────────────    │  │                           │
+│   │  │  Total: $750                      │  │                           │
+│   │  └───────────────────────────────────┘  │                           │
+│   └─────────────────────────────────────────┘                           │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Why This Architecture:**
+
+| Pure Chat Approach | Chat-to-UI Pipeline (Our Approach) |
+|--------------------|-------------------------------------|
+| LLM is the interface | LLM is the **accelerator** |
+| Corrections via more chat | Direct manipulation in UI |
+| Mental model of quote state | Visual confirmation always visible |
+| Ambiguity resolved through dialogue | Ambiguity resolved by editing fields |
+| Hard to review complex quotes | Table view handles 15+ line items |
+| "Did it understand me?" anxiety | What you see is what you get |
+
+**Key Benefits:**
+1. **Best of Both Worlds**: Chat for speed, UI for precision
+2. **LLM Errors Become Non-Critical**: Misinterpretations are fixed with one click
+3. **Live PDF Preview Builds Confidence**: Users see exactly what clients receive
+4. **Structured Output Enables Validation**: JSON schema acts as a contract
+5. **Chat Becomes Optional**: Power users can skip chat and use form directly
 
 ---
 
@@ -71,27 +149,111 @@ QuoteFlow AI is a conversational-first quotation management platform designed fo
 
 ### 3.1 Core Features (MVP)
 
-#### 3.1.1 AI Chat Interface
+#### 3.1.1 AI Chat Interface + Editable UI
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
 | **Conversational Quote Creation** | Create quotes via natural language chat | P0 |
+| **Structured Output Generation** | LLM outputs JSON config, not free-form text | P0 |
+| **Editable Form UI** | Chat output populates editable form with line items | P0 |
+| **Live PDF Preview** | Real-time preview updates as form is edited | P0 |
 | **Context Understanding** | AI understands products, pricing, customer context | P0 |
 | **Multi-turn Conversations** | Handle complex quotes across multiple messages | P0 |
 | **Deterministic Responses** | Consistent, predictable outputs using structured data | P0 |
 | **MCP Integration** | AI uses same APIs as UI for consistency | P0 |
+| **Bi-directional Sync** | Form edits can optionally reflect in chat context | P1 |
 
-**Example Conversation:**
+**Example User Flow:**
+
 ```
-User: Create a quote for John Smith at ABC Corp for 5 hours of consulting and 2 logo designs
-AI: I've created a quote for John Smith at ABC Corp:
-    - Consulting Services: 5 hours × $150/hr = $750
-    - Logo Design Package: 2 × $500 = $1,000
-    Subtotal: $1,750
-    Tax (10%): $175
-    Total: $1,925
-    
-    Would you like to add anything else or send this quote?
+┌─────────────────────────────────────────────────────────────────────────┐
+│  STEP 1: User types in chat                                              │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  User: "Create a quote for John Smith at ABC Corp for 5 hours of        │
+│         consulting and 2 logo designs"                                   │
+│                                                                          │
+│  STEP 2: AI processes and generates structured output                    │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  AI: "I've created a draft quote. You can review and edit it in the     │
+│       form, or tell me what to change."                                  │
+│                                                                          │
+│  STEP 3: Editable Form UI appears (populated from AI output)             │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │ Customer: [John Smith ▼]     Company: [ABC Corp           ]     │    │
+│  ├─────────────────────────────────────────────────────────────────┤    │
+│  │ LINE ITEMS                                                       │    │
+│  │ ┌─────────────────┬─────┬──────┬─────────┬──────────┬────────┐  │    │
+│  │ │ Description     │ Qty │ Unit │ Price   │ Discount │ Total  │  │    │
+│  │ ├─────────────────┼─────┼──────┼─────────┼──────────┼────────┤  │    │
+│  │ │ Consulting      │ [5] │ hr   │ [$150]  │ [0%]     │ $750   │  │    │
+│  │ │ Logo Design     │ [2] │ each │ [$500]  │ [0%]     │ $1,000 │  │    │
+│  │ └─────────────────┴─────┴──────┴─────────┴──────────┴────────┘  │    │
+│  │ [+ Add Line Item]                                                │    │
+│  ├─────────────────────────────────────────────────────────────────┤    │
+│  │ Subtotal: $1,750    Tax (10%): $175    Total: $1,925            │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  STEP 4: Live PDF Preview (updates in real-time as form changes)         │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │  [Company Logo]                                                  │    │
+│  │  QUOTATION #Q-2026-0042                                          │    │
+│  │  Date: February 28, 2026                                         │    │
+│  │  Valid Until: March 30, 2026                                     │    │
+│  │  ───────────────────────────────────────────────────────────    │    │
+│  │  Bill To: John Smith, ABC Corp                                   │    │
+│  │  ───────────────────────────────────────────────────────────    │    │
+│  │  Consulting Services        5 hr × $150      $750               │    │
+│  │  Logo Design Package        2 × $500         $1,000             │    │
+│  │  ───────────────────────────────────────────────────────────    │    │
+│  │  Subtotal: $1,750 | Tax: $175 | TOTAL: $1,925                   │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+│  STEP 5: User can continue via chat OR edit form directly                │
+│  ─────────────────────────────────────────────────────────────────────  │
+│  User (chat): "Add a 10% discount"  OR  User (form): clicks discount ▼  │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Structured Output Schema (JSON):**
+```json
+{
+  "customer": {
+    "id": "uuid-or-null",
+    "name": "John Smith",
+    "company": "ABC Corp",
+    "email": "john@abccorp.com"
+  },
+  "lineItems": [
+    {
+      "productId": "uuid-or-null",
+      "description": "Consulting Services",
+      "quantity": 5,
+      "unit": "hour",
+      "unitPrice": 150,
+      "discountPercent": 0,
+      "taxRate": 10
+    },
+    {
+      "productId": "uuid-or-null",
+      "description": "Logo Design Package",
+      "quantity": 2,
+      "unit": "each",
+      "unitPrice": 500,
+      "discountPercent": 0,
+      "taxRate": 10
+    }
+  ],
+  "discount": {
+    "type": "percent",
+    "value": 0
+  },
+  "validDays": 30,
+  "notes": "",
+  "currency": "USD"
+}
 ```
 
 #### 3.1.2 Product/Service Management
@@ -117,10 +279,12 @@ AI: I've created a quote for John Smith at ABC Corp:
 | **Terms & Conditions** | Attach standard or custom T&C | P1 |
 | **Notes** | Internal and customer-facing notes | P1 |
 
-#### 3.1.4 PDF Export & Templates
+#### 3.1.4 PDF Export & Live Preview
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
+| **Live PDF Preview** | Real-time preview updates as form is edited | P0 |
+| **Client-Side Rendering** | Instant preview using react-pdf/pdfmake | P0 |
 | **PDF Generation** | Export quotes as professional PDFs | P0 |
 | **Template System** | Multiple template designs | P0 |
 | **Logo Upload** | Company logo placement | P0 |
@@ -128,6 +292,11 @@ AI: I've created a quote for John Smith at ABC Corp:
 | **Payment Information** | Bank details, payment terms | P0 |
 | **Custom Fields** | Add business-specific fields | P1 |
 | **Visual Editor** | Drag-drop template customization | P2 |
+
+**Live Preview Implementation:**
+- Client-side rendering (react-pdf, pdfmake) for instant feedback during editing
+- Server-side generation only on final export for pixel-perfect output
+- Preview updates within 100ms of any form change
 
 #### 3.1.5 Sharing & Distribution
 
@@ -287,6 +456,8 @@ For high-volume channel users:
 | Metric | Target |
 |--------|--------|
 | Chat Response Time | < 2 seconds |
+| Chat → Form Render | < 500ms |
+| Live Preview Update | < 100ms |
 | PDF Generation | < 5 seconds |
 | Page Load Time | < 3 seconds |
 | API Response Time | < 500ms (p95) |
@@ -325,7 +496,8 @@ For high-volume channel users:
 |--------|-------------------|
 | Monthly Active Users | 5,000 |
 | Quotes Generated | 50,000/month |
-| Chat vs UI Usage | 60% chat |
+| Chat-Initiated Quotes | 60% (chat → form → send) |
+| Direct Form Usage | 40% (form only, no chat) |
 | Quote-to-PDF Conversion | 80% |
 | Customer Retention | 85% |
 

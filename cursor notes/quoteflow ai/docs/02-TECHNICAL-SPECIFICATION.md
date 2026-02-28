@@ -10,11 +10,13 @@
 
 ### 1.1 Architecture Philosophy
 
-QuoteFlow AI follows a **unified API architecture** where both the AI Agent and the React UI consume the same backend APIs. This ensures:
+QuoteFlow AI follows a **Chat-to-UI Pipeline** architecture where the LLM acts as an intelligent parser/generator that outputs structured data, which then populates an editable UI form with live PDF preview. Both the AI Agent and the React UI consume the same backend APIs. This ensures:
 
 - **Consistency**: AI and UI always produce identical results
 - **Determinism**: AI actions are predictable and auditable
 - **Maintainability**: Single source of truth for business logic
+- **User Control**: Chat accelerates creation, UI enables precision editing
+- **Error Recovery**: LLM mistakes are easily corrected in the form
 
 ### 1.2 High-Level Architecture
 
@@ -74,6 +76,91 @@ QuoteFlow AI follows a **unified API architecture** where both the AI Agent and 
 │  └──────────────────────┘  └──────────────────────┘                     │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 1.3 Chat-to-UI Pipeline Architecture
+
+The core user experience follows a **Chat → Structured Output → Editable UI → Live Preview** pipeline:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      CHAT-TO-UI PIPELINE FLOW                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                        CHAT PANEL                                │    │
+│  │  User: "Create a quote for John at ABC Corp for 5 hours         │    │
+│  │         consulting and 2 logo designs"                           │    │
+│  └──────────────────────────┬──────────────────────────────────────┘    │
+│                             │                                            │
+│                             ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                     LLM PROCESSING                               │    │
+│  │  1. Parse natural language intent                                │    │
+│  │  2. Look up products from catalog (MCP tool call)                │    │
+│  │  3. Look up/create contact (MCP tool call)                       │    │
+│  │  4. Generate structured JSON output                              │    │
+│  └──────────────────────────┬──────────────────────────────────────┘    │
+│                             │                                            │
+│                             ▼                                            │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                 STRUCTURED OUTPUT (JSON)                         │    │
+│  │  {                                                               │    │
+│  │    "customer": { "name": "John", "company": "ABC Corp" },        │    │
+│  │    "lineItems": [                                                │    │
+│  │      { "description": "Consulting", "qty": 5, "rate": 150 },     │    │
+│  │      { "description": "Logo Design", "qty": 2, "rate": 500 }     │    │
+│  │    ],                                                            │    │
+│  │    "currency": "USD", "validDays": 30                            │    │
+│  │  }                                                               │    │
+│  └──────────────────────────┬──────────────────────────────────────┘    │
+│                             │                                            │
+│           ┌─────────────────┴─────────────────┐                         │
+│           ▼                                   ▼                         │
+│  ┌─────────────────────────┐    ┌─────────────────────────────────┐    │
+│  │   EDITABLE FORM UI      │    │      LIVE PDF PREVIEW           │    │
+│  │  ┌───────────────────┐  │    │  ┌───────────────────────────┐  │    │
+│  │  │ Customer: [John▼] │  │◄──►│  │  [Logo]                   │  │    │
+│  │  │ Company: [ABC Co] │  │    │  │  QUOTATION #Q-2026-001    │  │    │
+│  │  ├───────────────────┤  │    │  │  To: John, ABC Corp       │  │    │
+│  │  │ LINE ITEMS        │  │    │  │  ─────────────────────    │  │    │
+│  │  │ Consulting 5h $750│  │    │  │  Consulting  5hr   $750   │  │    │
+│  │  │ Logo      2x $1000│  │    │  │  Logo Design 2x    $1000  │  │    │
+│  │  │ [+ Add Item]      │  │    │  │  ─────────────────────    │  │    │
+│  │  ├───────────────────┤  │    │  │  Total: $1,925            │  │    │
+│  │  │ Total: $1,925     │  │    │  └───────────────────────────┘  │    │
+│  │  └───────────────────┘  │    └─────────────────────────────────┘    │
+│  └─────────────────────────┘                                            │
+│           │                                                              │
+│           │  Real-time bidirectional sync                               │
+│           │  Form changes → Preview updates instantly (<100ms)          │
+│           │  Chat commands → Form + Preview update                      │
+│           ▼                                                              │
+│  ┌─────────────────────────────────────────────────────────────────┐    │
+│  │                      ACTIONS                                     │    │
+│  │  [Send via Email]  [Share Link]  [WhatsApp]  [Download PDF]     │    │
+│  └─────────────────────────────────────────────────────────────────┘    │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key Implementation Details:**
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| Chat Panel | React + WebSocket | Real-time conversation |
+| LLM Processing | Mastra AI + OpenRouter | Intent parsing, structured output |
+| Structured Output | Zod Schema Validation | Type-safe JSON contract |
+| Editable Form | React Hook Form + Zustand | State management, validation |
+| Live Preview | react-pdf / @react-pdf/renderer | Client-side PDF rendering |
+| Final PDF | Puppeteer (server-side) | Pixel-perfect export |
+
+**Data Flow:**
+1. User types in chat → WebSocket to backend
+2. Backend processes via Mastra AI Agent → Returns structured JSON
+3. Frontend receives JSON → Populates form state (Zustand)
+4. Form state changes → Triggers live preview re-render
+5. User can edit form directly OR continue chatting
+6. On "Send" → Server generates final PDF, stores, and distributes
 
 ---
 
@@ -500,7 +587,7 @@ CREATE INDEX idx_leads_tenant_status ON leads(tenant_id, status);
 }
 ```
 
-#### Chat Message
+#### Chat Message (Returns Structured Output for UI)
 
 ```typescript
 // POST /api/v1/chat/message
@@ -510,18 +597,54 @@ CREATE INDEX idx_leads_tenant_status ON leads(tenant_id, status);
   "message": "Create a quote for ABC Corp for 10 hours of consulting"
 }
 
-// Response
+// Response - includes structured_output for UI rendering
 {
   "success": true,
   "data": {
     "conversation_id": "uuid",
-    "response": "I've created a quote for ABC Corp:\n\n- Consulting Services: 10 hours × $150/hr = $1,500\n- Tax (10%): $150\n- **Total: $1,650**\n\nWould you like me to send this quote or make any changes?",
+    "response": "I've created a draft quote for ABC Corp. You can review and edit it in the form, or tell me what to change.",
     "actions_taken": [
       {
         "tool": "quote_create",
         "result": { "quote_id": "uuid", "quote_number": "QT-2026-0002" }
       }
     ],
+    // STRUCTURED OUTPUT - populates the editable form UI
+    "structured_output": {
+      "type": "quote_draft",
+      "data": {
+        "id": "uuid",
+        "quote_number": "QT-2026-0002",
+        "customer": {
+          "id": "uuid-or-null",
+          "name": "ABC Corp",
+          "company": "ABC Corp",
+          "email": null
+        },
+        "line_items": [
+          {
+            "id": "temp-uuid",
+            "product_id": "uuid-or-null",
+            "description": "Consulting Services",
+            "quantity": 10,
+            "uom": "hour",
+            "unit_price": 150.00,
+            "discount_percent": 0,
+            "tax_rate": 10,
+            "line_total": 1500.00
+          }
+        ],
+        "subtotal": 1500.00,
+        "discount_amount": 0,
+        "tax_amount": 150.00,
+        "total": 1650.00,
+        "currency": "USD",
+        "valid_until": "2026-03-30",
+        "notes": "",
+        "terms": ""
+      }
+    },
+    // Legacy format for backward compatibility
     "quote": {
       "id": "uuid",
       "quote_number": "QT-2026-0002",
@@ -529,6 +652,48 @@ CREATE INDEX idx_leads_tenant_status ON leads(tenant_id, status);
     }
   }
 }
+```
+
+**Structured Output Schema (Zod):**
+
+```typescript
+// src/schemas/chatOutput.ts
+import { z } from 'zod';
+
+export const QuoteDraftSchema = z.object({
+  type: z.literal('quote_draft'),
+  data: z.object({
+    id: z.string().uuid().optional(),
+    quote_number: z.string(),
+    customer: z.object({
+      id: z.string().uuid().nullable(),
+      name: z.string(),
+      company: z.string().optional(),
+      email: z.string().email().nullable(),
+    }),
+    line_items: z.array(z.object({
+      id: z.string(),
+      product_id: z.string().uuid().nullable(),
+      description: z.string(),
+      quantity: z.number().positive(),
+      uom: z.string().default('unit'),
+      unit_price: z.number().nonnegative(),
+      discount_percent: z.number().min(0).max(100).default(0),
+      tax_rate: z.number().min(0).max(100).default(0),
+      line_total: z.number(),
+    })).min(1),
+    subtotal: z.number(),
+    discount_amount: z.number().default(0),
+    tax_amount: z.number(),
+    total: z.number(),
+    currency: z.string().length(3).default('USD'),
+    valid_until: z.string(), // ISO date
+    notes: z.string().default(''),
+    terms: z.string().default(''),
+  }),
+});
+
+export type QuoteDraft = z.infer<typeof QuoteDraftSchema>;
 ```
 
 ---
@@ -1374,86 +1539,477 @@ frontend/
 └── package.json
 ```
 
-### 8.2 Chat Component
+### 8.2 Chat-to-UI Main Layout
+
+The main quote creation interface combines chat, editable form, and live PDF preview:
 
 ```tsx
-// src/components/chat/ChatWindow.tsx
+// src/components/quote-builder/QuoteBuilderLayout.tsx
+'use client';
+
+import { useQuoteBuilderStore } from '@/stores/quoteBuilderStore';
+import { ChatPanel } from './ChatPanel';
+import { QuoteEditorForm } from './QuoteEditorForm';
+import { LivePDFPreview } from './LivePDFPreview';
+
+export function QuoteBuilderLayout() {
+  const { quoteDraft, isLoading } = useQuoteBuilderStore();
+
+  return (
+    <div className="flex h-screen">
+      {/* Left: Chat Panel */}
+      <div className="w-80 border-r flex flex-col bg-gray-50">
+        <ChatPanel />
+      </div>
+
+      {/* Center: Editable Form */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {quoteDraft ? (
+          <QuoteEditorForm />
+        ) : (
+          <EmptyState />
+        )}
+      </div>
+
+      {/* Right: Live PDF Preview */}
+      <div className="w-[400px] border-l bg-white overflow-y-auto">
+        {quoteDraft && <LivePDFPreview />}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="text-center">
+        <p className="text-lg font-medium">Start a quote</p>
+        <p className="mt-2">Type in the chat or use the form below</p>
+        <button className="mt-4 px-4 py-2 bg-primary text-white rounded-lg">
+          Create New Quote
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### 8.3 Quote Builder Store (Zustand)
+
+Central state management for the chat-to-UI pipeline:
+
+```tsx
+// src/stores/quoteBuilderStore.ts
+import { create } from 'zustand';
+import { QuoteDraft } from '@/schemas/chatOutput';
+
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  structuredOutput?: QuoteDraft;
+}
+
+interface QuoteBuilderState {
+  // Chat state
+  messages: Message[];
+  conversationId: string | null;
+  isLoading: boolean;
+  
+  // Quote draft state (populated from chat OR form edits)
+  quoteDraft: QuoteDraft['data'] | null;
+  
+  // Actions
+  sendMessage: (message: string) => Promise<void>;
+  updateQuoteDraft: (updates: Partial<QuoteDraft['data']>) => void;
+  updateLineItem: (index: number, updates: Partial<QuoteDraft['data']['line_items'][0]>) => void;
+  addLineItem: () => void;
+  removeLineItem: (index: number) => void;
+  resetQuote: () => void;
+}
+
+export const useQuoteBuilderStore = create<QuoteBuilderState>((set, get) => ({
+  messages: [],
+  conversationId: null,
+  isLoading: false,
+  quoteDraft: null,
+
+  sendMessage: async (message: string) => {
+    set({ isLoading: true });
+    
+    // Add user message
+    const userMessage: Message = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: message,
+      timestamp: new Date(),
+    };
+    
+    set((state) => ({ messages: [...state.messages, userMessage] }));
+
+    try {
+      const response = await fetch('/api/v1/chat/message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversation_id: get().conversationId,
+          message,
+        }),
+      });
+
+      const data = await response.json();
+      
+      // Add assistant message
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: data.data.response,
+        timestamp: new Date(),
+        structuredOutput: data.data.structured_output,
+      };
+      
+      set((state) => ({
+        messages: [...state.messages, assistantMessage],
+        conversationId: data.data.conversation_id,
+      }));
+
+      // If structured output contains quote draft, update the form
+      if (data.data.structured_output?.type === 'quote_draft') {
+        set({ quoteDraft: data.data.structured_output.data });
+      }
+    } catch (error) {
+      console.error('Chat error:', error);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  updateQuoteDraft: (updates) => {
+    set((state) => ({
+      quoteDraft: state.quoteDraft 
+        ? { ...state.quoteDraft, ...updates }
+        : null,
+    }));
+    // Recalculate totals
+    get().recalculateTotals();
+  },
+
+  updateLineItem: (index, updates) => {
+    set((state) => {
+      if (!state.quoteDraft) return state;
+      
+      const newLineItems = [...state.quoteDraft.line_items];
+      newLineItems[index] = { ...newLineItems[index], ...updates };
+      
+      // Recalculate line total
+      const item = newLineItems[index];
+      const subtotal = item.quantity * item.unit_price;
+      const discount = subtotal * (item.discount_percent / 100);
+      const afterDiscount = subtotal - discount;
+      const tax = afterDiscount * (item.tax_rate / 100);
+      newLineItems[index].line_total = afterDiscount + tax;
+      
+      return {
+        quoteDraft: { ...state.quoteDraft, line_items: newLineItems },
+      };
+    });
+    get().recalculateTotals();
+  },
+
+  addLineItem: () => {
+    set((state) => {
+      if (!state.quoteDraft) return state;
+      
+      const newItem = {
+        id: crypto.randomUUID(),
+        product_id: null,
+        description: '',
+        quantity: 1,
+        uom: 'unit',
+        unit_price: 0,
+        discount_percent: 0,
+        tax_rate: 0,
+        line_total: 0,
+      };
+      
+      return {
+        quoteDraft: {
+          ...state.quoteDraft,
+          line_items: [...state.quoteDraft.line_items, newItem],
+        },
+      };
+    });
+  },
+
+  removeLineItem: (index) => {
+    set((state) => {
+      if (!state.quoteDraft || state.quoteDraft.line_items.length <= 1) return state;
+      
+      const newLineItems = state.quoteDraft.line_items.filter((_, i) => i !== index);
+      return {
+        quoteDraft: { ...state.quoteDraft, line_items: newLineItems },
+      };
+    });
+    get().recalculateTotals();
+  },
+
+  recalculateTotals: () => {
+    set((state) => {
+      if (!state.quoteDraft) return state;
+      
+      const subtotal = state.quoteDraft.line_items.reduce(
+        (sum, item) => sum + (item.quantity * item.unit_price),
+        0
+      );
+      
+      const discountAmount = state.quoteDraft.line_items.reduce(
+        (sum, item) => sum + (item.quantity * item.unit_price * item.discount_percent / 100),
+        0
+      );
+      
+      const taxAmount = state.quoteDraft.line_items.reduce(
+        (sum, item) => {
+          const afterDiscount = item.quantity * item.unit_price * (1 - item.discount_percent / 100);
+          return sum + (afterDiscount * item.tax_rate / 100);
+        },
+        0
+      );
+      
+      return {
+        quoteDraft: {
+          ...state.quoteDraft,
+          subtotal,
+          discount_amount: discountAmount,
+          tax_amount: taxAmount,
+          total: subtotal - discountAmount + taxAmount,
+        },
+      };
+    });
+  },
+
+  resetQuote: () => {
+    set({ quoteDraft: null, messages: [], conversationId: null });
+  },
+}));
+```
+
+### 8.4 Live PDF Preview Component
+
+Real-time PDF preview using react-pdf:
+
+```tsx
+// src/components/quote-builder/LivePDFPreview.tsx
+'use client';
+
+import { useMemo } from 'react';
+import { Document, Page, Text, View, StyleSheet, PDFViewer } from '@react-pdf/renderer';
+import { useQuoteBuilderStore } from '@/stores/quoteBuilderStore';
+import { useCompanySettings } from '@/hooks/useCompanySettings';
+
+const styles = StyleSheet.create({
+  page: { padding: 40, fontSize: 10, fontFamily: 'Helvetica' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
+  logo: { width: 100, height: 40 },
+  title: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+  section: { marginBottom: 20 },
+  table: { display: 'flex', flexDirection: 'column', marginTop: 10 },
+  tableHeader: { flexDirection: 'row', backgroundColor: '#f3f4f6', padding: 8, fontWeight: 'bold' },
+  tableRow: { flexDirection: 'row', padding: 8, borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  col1: { width: '40%' },
+  col2: { width: '15%', textAlign: 'center' },
+  col3: { width: '15%', textAlign: 'right' },
+  col4: { width: '15%', textAlign: 'right' },
+  col5: { width: '15%', textAlign: 'right' },
+  totals: { marginTop: 20, alignItems: 'flex-end' },
+  totalRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 },
+  totalLabel: { width: 100, textAlign: 'right', marginRight: 10 },
+  totalValue: { width: 80, textAlign: 'right' },
+  grandTotal: { fontSize: 14, fontWeight: 'bold', marginTop: 8, paddingTop: 8, borderTopWidth: 2 },
+});
+
+export function LivePDFPreview() {
+  const { quoteDraft } = useQuoteBuilderStore();
+  const { company } = useCompanySettings();
+
+  const QuoteDocument = useMemo(() => {
+    if (!quoteDraft) return null;
+
+    return (
+      <Document>
+        <Page size="A4" style={styles.page}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.title}>QUOTATION</Text>
+              <Text>#{quoteDraft.quote_number}</Text>
+              <Text>Date: {new Date().toLocaleDateString()}</Text>
+              <Text>Valid Until: {quoteDraft.valid_until}</Text>
+            </View>
+            <View>
+              <Text style={{ fontWeight: 'bold' }}>{company?.name}</Text>
+              <Text>{company?.address}</Text>
+              <Text>{company?.email}</Text>
+            </View>
+          </View>
+
+          {/* Bill To */}
+          <View style={styles.section}>
+            <Text style={{ fontWeight: 'bold', marginBottom: 4 }}>Bill To:</Text>
+            <Text>{quoteDraft.customer.name}</Text>
+            {quoteDraft.customer.company && <Text>{quoteDraft.customer.company}</Text>}
+            {quoteDraft.customer.email && <Text>{quoteDraft.customer.email}</Text>}
+          </View>
+
+          {/* Line Items Table */}
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.col1}>Description</Text>
+              <Text style={styles.col2}>Qty</Text>
+              <Text style={styles.col3}>Unit Price</Text>
+              <Text style={styles.col4}>Discount</Text>
+              <Text style={styles.col5}>Total</Text>
+            </View>
+            {quoteDraft.line_items.map((item, index) => (
+              <View key={index} style={styles.tableRow}>
+                <Text style={styles.col1}>{item.description}</Text>
+                <Text style={styles.col2}>{item.quantity} {item.uom}</Text>
+                <Text style={styles.col3}>${item.unit_price.toFixed(2)}</Text>
+                <Text style={styles.col4}>{item.discount_percent > 0 ? `${item.discount_percent}%` : '-'}</Text>
+                <Text style={styles.col5}>${item.line_total.toFixed(2)}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Totals */}
+          <View style={styles.totals}>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal:</Text>
+              <Text style={styles.totalValue}>${quoteDraft.subtotal.toFixed(2)}</Text>
+            </View>
+            {quoteDraft.discount_amount > 0 && (
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Discount:</Text>
+                <Text style={styles.totalValue}>-${quoteDraft.discount_amount.toFixed(2)}</Text>
+              </View>
+            )}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Tax:</Text>
+              <Text style={styles.totalValue}>${quoteDraft.tax_amount.toFixed(2)}</Text>
+            </View>
+            <View style={[styles.totalRow, styles.grandTotal]}>
+              <Text style={styles.totalLabel}>TOTAL ({quoteDraft.currency}):</Text>
+              <Text style={styles.totalValue}>${quoteDraft.total.toFixed(2)}</Text>
+            </View>
+          </View>
+
+          {/* Notes */}
+          {quoteDraft.notes && (
+            <View style={[styles.section, { marginTop: 30 }]}>
+              <Text style={{ fontWeight: 'bold', marginBottom: 4 }}>Notes:</Text>
+              <Text>{quoteDraft.notes}</Text>
+            </View>
+          )}
+        </Page>
+      </Document>
+    );
+  }, [quoteDraft, company]);
+
+  if (!quoteDraft) return null;
+
+  return (
+    <div className="h-full">
+      <div className="p-4 border-b bg-gray-50">
+        <h3 className="font-medium">Live Preview</h3>
+        <p className="text-sm text-gray-500">Updates as you edit</p>
+      </div>
+      <PDFViewer width="100%" height="calc(100% - 60px)" showToolbar={false}>
+        {QuoteDocument}
+      </PDFViewer>
+    </div>
+  );
+}
+```
+
+### 8.5 Chat Panel Component
+
+```tsx
+// src/components/quote-builder/ChatPanel.tsx
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useChatStore } from '@/stores/chatStore';
+import { useQuoteBuilderStore } from '@/stores/quoteBuilderStore';
 import { MessageBubble } from './MessageBubble';
-import { ChatInput } from './ChatInput';
-import { QuotePreview } from './QuotePreview';
 
-export function ChatWindow() {
-  const {
-    messages,
-    isLoading,
-    currentQuote,
-    sendMessage,
-    clearChat,
-  } = useChatStore();
-  
+export function ChatPanel() {
+  const { messages, isLoading, sendMessage } = useQuoteBuilderStore();
+  const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async (message: string) => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    
+    const message = input;
+    setInput('');
     await sendMessage(message);
   };
 
   return (
-    <div className="flex h-full">
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && (
-            <div className="text-center text-gray-500 mt-8">
-              <p className="text-lg font-medium">Welcome to QuoteFlow AI</p>
-              <p className="mt-2">Try saying:</p>
-              <ul className="mt-2 space-y-1 text-sm">
-                <li>"Create a quote for John at ABC Corp"</li>
-                <li>"Add 5 hours of consulting to the quote"</li>
-                <li>"Send the quote via email"</li>
-              </ul>
-            </div>
-          )}
-          
-          {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              role={message.role}
-              content={message.content}
-              timestamp={message.timestamp}
-              actions={message.actions}
-            />
-          ))}
-          
-          {isLoading && (
-            <div className="flex items-center space-x-2 text-gray-500">
-              <div className="animate-pulse">●</div>
-              <div className="animate-pulse delay-100">●</div>
-              <div className="animate-pulse delay-200">●</div>
-            </div>
-          )}
-          
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <ChatInput onSend={handleSend} disabled={isLoading} />
+    <div className="flex flex-col h-full">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        {messages.length === 0 && (
+          <div className="text-center text-gray-500 text-sm mt-4">
+            <p className="font-medium">Chat with QuoteFlow AI</p>
+            <p className="mt-2">Try:</p>
+            <ul className="mt-1 space-y-1 text-xs">
+              <li>"Quote for John at ABC Corp"</li>
+              <li>"Add 5 hours consulting"</li>
+              <li>"Apply 10% discount"</li>
+            </ul>
+          </div>
+        )}
+        
+        {messages.map((message) => (
+          <MessageBubble key={message.id} message={message} />
+        ))}
+        
+        {isLoading && (
+          <div className="flex items-center space-x-1 text-gray-400 text-sm">
+            <span className="animate-bounce">●</span>
+            <span className="animate-bounce delay-100">●</span>
+            <span className="animate-bounce delay-200">●</span>
+          </div>
+        )}
+        
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Quote Preview Sidebar */}
-      {currentQuote && (
-        <div className="w-96 border-l bg-gray-50 p-4 overflow-y-auto">
-          <QuotePreview quote={currentQuote} />
+      {/* Input */}
+      <form onSubmit={handleSubmit} className="p-3 border-t bg-white">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type a message..."
+            className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            disabled={isLoading}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="px-4 py-2 bg-primary text-white rounded-lg text-sm disabled:opacity-50"
+          >
+            Send
+          </button>
         </div>
-      )}
+      </form>
     </div>
   );
 }
