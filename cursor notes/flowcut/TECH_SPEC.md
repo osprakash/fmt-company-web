@@ -40,8 +40,8 @@ FlowCut is a **browser-first** video caption tool. All processing happens client
 │                           SERVER                                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │
-│  │   Next.js   │  │  Supabase   │  │   Stripe    │              │
-│  │   API       │  │  (Auth/DB)  │  │  (Payments) │              │
+│  │   Next.js   │  │  PostgreSQL │  │   Stripe    │              │
+│  │   API       │  │  + NextAuth │  │  (Payments) │              │
 │  └─────────────┘  └─────────────┘  └─────────────┘              │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -72,8 +72,9 @@ FlowCut is a **browser-first** video caption tool. All processing happens client
 | Layer | Technology | Purpose |
 |-------|------------|---------|
 | API | Next.js API Routes | Serverless functions |
-| Database | Supabase (PostgreSQL) | User data |
-| Auth | Supabase Auth | Email + Google OAuth |
+| Database | PostgreSQL | User data |
+| ORM | Prisma | Database access |
+| Auth | NextAuth.js | Email + Google OAuth |
 | Payments | Stripe | Subscriptions |
 | Hosting | Vercel | Deployment |
 
@@ -275,30 +276,81 @@ const CAPTION_PRESETS = {
 
 ## 4. Data Models
 
-### 4.1 Database Schema (Supabase)
+### 4.1 Database Schema (PostgreSQL + Prisma)
 
-```sql
--- Users (managed by Supabase Auth)
-CREATE TABLE user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id),
-  tier TEXT DEFAULT 'free' CHECK (tier IN ('free', 'pro')),
-  exports_this_month INTEGER DEFAULT 0,
-  exports_reset_at TIMESTAMPTZ DEFAULT NOW(),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+```prisma
+// prisma/schema.prisma
 
--- Export history
-CREATE TABLE exports (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES user_profiles(id) ON DELETE CASCADE,
-  resolution TEXT NOT NULL,
-  duration_seconds FLOAT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  image             String?
+  tier              Tier      @default(FREE)
+  exportsThisMonth  Int       @default(0)
+  exportsResetAt    DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  exports           Export[]
+  accounts          Account[]
+  sessions          Session[]
+}
 
--- Indexes
-CREATE INDEX idx_exports_user ON exports(user_id);
-CREATE INDEX idx_exports_created ON exports(created_at);
+model Export {
+  id              String   @id @default(cuid())
+  userId          String
+  resolution      String
+  durationSeconds Float?
+  createdAt       DateTime @default(now())
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([createdAt])
+}
+
+enum Tier {
+  FREE
+  PRO
+}
+
+// NextAuth.js required models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+  
+  @@unique([identifier, token])
+}
 ```
 
 ### 4.2 Client State (Zustand)
@@ -531,7 +583,7 @@ class ExportLimitError extends FlowCutError {
 - [ ] Export trimmed segment
 
 ### Week 4: Payments + Polish
-- [ ] Supabase auth
+- [ ] NextAuth.js (email + Google OAuth)
 - [ ] Stripe integration
 - [ ] Export limits
 - [ ] Watermark for free tier

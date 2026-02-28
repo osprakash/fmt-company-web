@@ -83,8 +83,8 @@ Short-form creators who post 3+ times per week and need fast caption turnaround.
 | Video processing | FFmpeg.wasm |
 | Transcription | Whisper Web (WebGPU/WASM) |
 | Caption rendering | Canvas API |
-| Storage | IndexedDB (local), Supabase (accounts) |
-| Auth | Supabase Auth |
+| Storage | IndexedDB (local), PostgreSQL (accounts) |
+| Auth | NextAuth.js |
 | Payments | Stripe |
 | Hosting | Vercel |
 
@@ -241,7 +241,7 @@ Conservative estimates. No viral growth assumed.
 - [ ] Export trimmed segment
 
 ### Week 4: Payments + Polish
-- [ ] Supabase auth (email + Google)
+- [ ] NextAuth.js (email + Google OAuth)
 - [ ] Stripe subscription integration
 - [ ] Watermark on free exports
 - [ ] Export limits enforcement
