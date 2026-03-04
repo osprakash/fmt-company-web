@@ -19,7 +19,7 @@
 **Why `base` quantized:**
 - 40MB is ~73% smaller than the original 150MB estimate
 - Downloads in ~8-15 seconds on average connections
-- Accuracy is sufficient for short-form video (< 15 min)
+- Accuracy is sufficient for short-form video (< 5 min)
 - Quantization has minimal impact on transcription quality
 
 ### 1.2 Model Source
@@ -226,7 +226,7 @@ Only show if model isn't cached AND user hasn't dismissed before:
 │                         📁                                      │
 │                                                                 │
 │              Drop your video here to add captions               │
-│                   MP4, WebM, MOV up to 200MB                    │
+│                   MP4, WebM, MOV up to 400MB                    │
 │                                                                 │
 │                      [ Browse files ]                           │
 │                                                                 │

@@ -39,7 +39,7 @@ Short-form creators who post 3+ times per week and need fast caption turnaround.
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
-| Video upload | Drag & drop MP4/WebM/MOV (max 200MB) | P0 |
+| Video upload | Drag & drop MP4/WebM/MOV (max 400MB) | P0 |
 | Transcription | Whisper Web (client-side), auto language detection | P0 |
 | Caption preview | Real-time preview with word highlighting | P0 |
 | Caption styles | 5 presets: Classic, Karaoke, Bounce, Glow, Minimal | P0 |
@@ -53,7 +53,7 @@ Short-form creators who post 3+ times per week and need fast caption turnaround.
 |---------|-------------|----------|
 | Timeline trim | Set start/end points with visual timeline | P0 |
 | Waveform display | Audio waveform for easier trimming | P1 |
-| Export quality | 720p (free), 1080p (paid) | P0 |
+| Export quality | 1080p (free + paid) | P0 |
 | Watermark | "Made with FlowCut" on free exports | P0 |
 | User accounts | Email + Google OAuth | P0 |
 | Payments | Stripe integration, monthly subscription | P0 |
@@ -98,9 +98,9 @@ Short-form creators who post 3+ times per week and need fast caption turnaround.
 
 | Constraint | Free | Paid |
 |------------|------|------|
-| Max file size | 200MB | 300MB |
-| Max duration | 10 min | 15 min |
-| Export quality | 720p | 1080p |
+| Max file size | 400MB | 400MB |
+| Max duration | 5 min | 5 min |
+| Export quality | 1080p | 1080p |
 | Watermark | Yes | No |
 
 ---
@@ -126,8 +126,8 @@ Time: 0 sec       Time: 30 sec      Time: 2 min       Time: 3 min
 3. Wait for transcription (~30 sec for 5 min video)
 4. Pick caption style, adjust if needed
 5. Preview result
-6. Export → First export free (720p, watermarked)
-7. Prompt: "Remove watermark + 1080p for $9/mo"
+6. Export → First export free (1080p, watermarked)
+7. Prompt: "Remove watermark for $9/mo"
 
 ---
 
@@ -141,14 +141,14 @@ All features free to use. Pay to export without limitations.
 |--|----------|---------|
 | **Price** | $0 | $9/mo |
 | Exports/month | 3 | Unlimited |
-| Export quality | 720p | 1080p |
+| Export quality | 1080p | 1080p |
 | Watermark | Yes | No |
-| Max file size | 200MB | 300MB |
-| Max duration | 10 min | 15 min |
+| Max file size | 400MB | 400MB |
+| Max duration | 5 min | 5 min |
 
 ### 5.2 Why This Pricing
 - **$9/mo is impulse-buy territory** for creators
-- **720p looks noticeably soft** on TikTok/Reels (1080p native) — quality alone drives upgrades
+- **Watermark removal** is a clear upgrade trigger for creators
 - **3 exports/month** lets users validate the tool but not sustain a posting schedule
 - **Watermark** is free advertising + conversion pressure
 
@@ -271,8 +271,8 @@ MVP is complete when:
 - [ ] User can drop a video and see transcript in <60 seconds
 - [ ] User can apply any of 5 caption styles
 - [ ] User can trim video with timeline
-- [ ] User can export 720p MP4 with watermark (free)
-- [ ] User can pay $9/mo for 1080p without watermark
+- [ ] User can export 1080p MP4 with watermark (free)
+- [ ] User can pay $9/mo for exports without watermark
 - [ ] Export success rate >90%
 - [ ] Works in Chrome, Firefox, Edge
 

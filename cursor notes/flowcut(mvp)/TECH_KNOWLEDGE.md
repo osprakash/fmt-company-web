@@ -435,19 +435,19 @@ Fastest encoding              Best compression
 
 This is a hard limit. Exceed it and the tab crashes.
 
-**Memory usage for a 200MB video:**
+**Memory usage for a 400MB video:**
 ```
-Input file in MEMFS:          200 MB
+Input file in MEMFS:          400 MB
 Whisper model:                150 MB
 Audio Float32Array:            20 MB
-FFmpeg buffers:                60 MB
-Output file:                  180 MB
+FFmpeg buffers:               120 MB
+Output file:                  360 MB
 Application:                  100 MB
 ────────────────────────────────────
-TOTAL:                       ~710 MB (safe)
+TOTAL:                      ~1,150 MB (safe)
 ```
 
-**Why FlowCut limits to 200-300MB:** Leaves headroom for browser variance.
+**Why FlowCut limits to ~400MB:** Leaves headroom for browser variance.
 
 ### 7.2 Required Headers
 

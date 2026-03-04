@@ -466,8 +466,8 @@ async headers() {
 
 | Tier | Max File Size | Max Duration |
 |------|---------------|--------------|
-| Free | 200MB | 10 min |
-| Pro | 300MB | 15 min |
+| Free | 400MB | 5 min |
+| Pro | 400MB | 5 min |
 
 ---
 
@@ -490,10 +490,10 @@ async headers() {
 ### 7.2 FFmpeg Filter Chain
 
 ```bash
-# Free tier (720p, watermark)
+# Free tier (1080p, watermark)
 -i input.mp4 \
   -ss {start} -to {end} \
-  -vf "ass=subs.ass,scale=-1:720,drawtext=text='Made with FlowCut':fontsize=20:fontcolor=white@0.5:x=w-tw-10:y=h-th-10" \
+  -vf "ass=subs.ass,scale=-1:1080,drawtext=text='Made with FlowCut':fontsize=20:fontcolor=white@0.5:x=w-tw-10:y=h-th-10" \
   -c:v libx264 -preset fast -crf 23 \
   -c:a aac -b:a 128k \
   output.mp4
@@ -555,10 +555,10 @@ class ExportLimitError extends FlowCutError {
 
 | Operation | Target | Notes |
 |-----------|--------|-------|
-| Video load | <3s | For 200MB file |
+| Video load | <3s | For 400MB file |
 | Transcription | <30s/min | Using Whisper base |
-| Export (720p) | <2min/min | FFmpeg.wasm |
-| Export (1080p) | <3min/min | FFmpeg.wasm |
+| Export (1080p, free) | <2min/min | FFmpeg.wasm |
+| Export (1080p, pro) | <3min/min | FFmpeg.wasm |
 
 ---
 
